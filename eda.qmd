@@ -21,12 +21,11 @@ The purpose of this exploratory data analysis is to understand the application d
 The analysis will address the following questions:
 
 1. How common is payment difficulty in the training data?
-2. Which applicant demographic characteristics appear to be associated with payment difficulty?
-3. How do income, requested credit amount, annuity amount, and other financial characteristics differ between applicants with and without payment difficulties?
-4. Do employment history and age appear to be associated with payment difficulty?
-5. Do external credit-score variables show a relationship with payment difficulty?
-6. Which variables contain substantial missing data, unusual values, or other data-quality problems that must be addressed before modeling?
-7. Are the training and test datasets structurally consistent enough to support the planned predictive analysis?
+2. How does applicant age differ between applicants with and without payment difficulty?
+3. How do income and requested credit amounts differ between applicants with and without payment difficulty?
+4. What relationships exist among key financial variables such as income, credit amount, and annuity amount?
+5. Which variables contain substantial missing data, unusual values, or other data-quality problems that must be addressed before modeling?
+6. Are the training and test datasets structurally consistent enough to support the planned predictive analysis?
 
 # Description of the Data
 ```{r}
@@ -107,7 +106,7 @@ glimpse(column_description)
 Based on the data dictionary, the application data include several major groups of information that may be useful for understanding payment difficulty. These include applicant demographics and household characteristics, employment and income information, loan and annuity characteristics, housing and property information, external credit scores, contact and document indicators, regional information, and credit bureau inquiry information. The TARGET variable is the outcome in the training data and indicates whether an applicant experienced payment difficulties. These groups provide different perspectives on an applicant's financial situation and may contain useful predictors of repayment risk.
 
 # Data Integrity
-## Missing Values
+### Which Variables Contain Substantial Missing Data?
 
 Missing data can affect both exploratory analysis and later predictive modeling. The training data are examined to identify variables with substantial missingness and determine which variables may require special treatment during data preparation.
 
@@ -129,9 +128,24 @@ missing_summary <- application_train |>
 missing_summary |>
   slice_head(n = 15)
 ```
-The missing-value analysis shows substantial missingness in several variables, particularly variables describing housing and property characteristics. COMMONAREA_AVG, COMMONAREA_MODE, and COMMONAREA_MEDI each have approximately 69.9% missing values, while several apartment, floor, and building-related variables are missing for more than 65% of applications. This level of missingness could limit the usefulness of these variables and may affect later modeling. During data preparation, variables with very high missingness should be evaluated before deciding whether to retain, impute, or exclude them rather than automatically removing all incomplete records.
+The missing-value analysis shows substantial missingness in several variables, particularly those describing housing and property characteristics. COMMONAREA_AVG, COMMONAREA_MODE, and COMMONAREA_MEDI each have approximately 69.9% missing values, while several apartment, floor, and building-related variables are missing for more than 65% of applications. Because these variables are unavailable for a large portion of applicants, relying heavily on them could reduce the amount of usable information available for consistent default-risk prediction. During data preparation, variables with very high missingness should be evaluated individually to determine whether they provide enough useful information to retain or impute; otherwise, they may be excluded from modeling.
 
-## Unusual Values
+```{r}
+# Examine whether missingness in a highly incomplete variable is associated with payment difficulty
+application_train |>
+  mutate(
+    COMMONAREA_AVG_Missing = if_else(is.na(COMMONAREA_AVG), "Missing", "Not Missing")
+  ) |>
+  group_by(COMMONAREA_AVG_Missing) |>
+  summarise(
+    Applicants = n(),
+    Payment_Difficulty_Rate = mean(TARGET) * 100,
+    .groups = "drop"
+  )
+```
+Applicants with missing `COMMONAREA_AVG` values had a payment-difficulty rate of 8.57%, compared with 6.91% among applicants with non-missing values. This suggests that missingness in this variable is associated with payment difficulty and may contain useful predictive information rather than being purely random. Therefore, during data preparation, the missing values should not simply be ignored or the affected records automatically removed. The variable and its missingness should be evaluated as potential information for the predictive model.
+
+### Are There Unusual Numeric Values That Could Affect the Analysis?
 
 Several variables represent applicant characteristics and time measurements. Selected variables are examined for unusual or potentially unrealistic values that could affect interpretation or later modeling.
 
@@ -157,9 +171,9 @@ application_train |>
     Percent_365243 = mean(DAYS_EMPLOYED == 365243, na.rm = TRUE) * 100
   )
 ```
-The value 365243 appears in 55,374 records, representing approximately 18.0% of the training data. This value is not a realistic number of days employed and appears to represent a special value rather than an actual employment duration. During data preparation, this value should therefore be treated separately rather than interpreted as a valid number of employment days.
+The value 365243 appears in 55,374 records, representing approximately 18.0% of the training data. This is not a realistic number of employment days and appears to represent a special value rather than an actual employment duration. During data preparation, this value should therefore be treated separately rather than as a valid number of employment days so that it does not distort the relationship between employment history and payment difficulty.
 
-### DAYS_BIRTH Check
+### Does DAYS_BIRTH Contain Unrealistic Applicant Ages?
 
 `DAYS_BIRTH` contains negative values because age is recorded as the number of days before the current loan application. Converting these values to approximate ages will make the range easier to interpret.
 
@@ -174,7 +188,7 @@ application_train |>
 ```
   After converting DAYS_BIRTH from days to approximate years, applicant ages range from 20.5 to 69.1 years, with an average age of 43.9 years. These values appear reasonable for loan applicants. Therefore, the negative values in DAYS_BIRTH reflect how the variable is recorded rather than a data-quality problem.
 
-### Categorical Value Check
+### Are There Unusual Values in the Categorical Variables?
 
 Selected categorical variables are examined to identify unusual or unexpected category values that may require cleaning before modeling.
 
@@ -189,11 +203,11 @@ application_train |>
 application_train |>
   count(NAME_INCOME_TYPE)
 ```
-The categorical-value check identified a small number of potentially unusual values. CODE_GENDER contains 4 records coded as XNA, while NAME_FAMILY_STATUS contains 2 records coded as Unknown. These values should be reviewed during data preparation to determine how they should be handled. NAME_INCOME_TYPE also contains several rare categories, but these represent interpretable income types and should not be treated as data errors solely because of their low frequency.
+The categorical-value check identified a small number of unusual values. CODE_GENDER contains 4 records coded as XNA, while NAME_FAMILY_STATUS contains 2 records coded as Unknown. Because these values do not represent standard categories, they should be reviewed and handled explicitly during data preparation rather than automatically treated as valid categories. NAME_INCOME_TYPE also contains several rare categories, but these categories are interpretable and should be retained at this stage because low frequency alone does not indicate a data-quality problem.
 
 # Exploratory Results
 
-## Payment Difficulty
+### How Common Is Payment Difficulty in the Training Data?
 
 The `TARGET` variable identifies whether an applicant experienced payment difficulties. Examining its distribution shows how common payment difficulty is in the training data and whether the outcome is balanced.
 
@@ -228,11 +242,11 @@ ggplot(target_summary, aes(x = factor(TARGET), y = Percent)) +
   ) +
   theme_minimal()
 ```
-Payment difficulty is relatively uncommon in the training data. Of the 307,511 applications, 24,825 (8.1%) are associated with payment difficulty, while 282,686 (91.9%) are not. This indicates a substantial class imbalance in the target variable. This imbalance should be considered during modeling because measures such as overall accuracy could appear high even if a model performs poorly at identifying applicants who experience payment difficulties.
+Payment difficulty is relatively uncommon in the training data. Approximately 8.1% of applicants experienced payment difficulty, while 91.9% did not. This creates a substantial class imbalance, meaning that a predictive model could appear accurate simply by favoring the much larger group without payment difficulty. Therefore, class imbalance should be considered when evaluating predictive models rather than relying only on overall accuracy.
 
 ## Applicant Demographics
 
-### Age and Payment Difficulty
+### How Does Applicant Age Differ Between Applicants With and Without Payment Difficulty?
 
 Applicant age is examined to determine whether payment difficulty varies across age groups. `DAYS_BIRTH` is converted to approximate age in years for easier interpretation.
 
@@ -273,9 +287,9 @@ application_train |>
   ) +
   theme_minimal()
 ```
-The age distributions show that applicants with payment difficulty tend to be younger than applicants without payment difficulty. The payment-difficulty group is more concentrated among younger applicants, while applicants without payment difficulty have relatively greater representation at older ages. This pattern is consistent with the difference in average age observed above and suggests that age may be associated with repayment risk.
+The age distributions show that applicants with payment difficulty tend to be younger than applicants without payment difficulty. The payment-difficulty group is more concentrated among younger applicants, while applicants without payment difficulty have relatively greater representation at older ages. This pattern is consistent with the difference in average age observed above and provides additional evidence that age may be useful as a potential predictor during modeling.
 
-### Income and Payment Difficulty
+### How Do Income and Requested Credit Amounts Differ Between Applicants With and Without Payment Difficulty?
 
 Applicant income is examined to determine whether income differs between applicants who did and did not experience payment difficulties. Because unusually large income values were identified during the initial data checks, both the average and median are compared.
 ```{r}
@@ -290,7 +304,7 @@ income_summary <- application_train |>
 
 income_summary
 ```
-Applicants who experienced payment difficulty had a lower median income than applicants without payment difficulty. The median income was 135,000 for applicants with payment difficulty compared with 148,500 for those without payment difficulty. The average incomes were more similar, which may partly reflect the influence of unusually large income values. This suggests that income may be associated with payment difficulty, but the distribution and outliers should be considered before modeling.
+Applicants who experienced payment difficulty had a lower median income than applicants without payment difficulty. The median income was 135,000 for applicants with payment difficulty compared with 148,500 for those without payment difficulty. The average incomes were more similar, which may partly reflect the influence of unusually large income values. This suggests that income may be associated with payment difficulty. Income should be retained as a potential predictor, while extreme income values should be examined during data preparation.
 ```{r}
 # Compare income distributions by payment difficulty
 application_train |>
@@ -315,7 +329,7 @@ The income distributions overlap considerably between the two groups, although a
 
 ## Loan Characteristics
 
-### Credit Amount and Payment Difficulty
+### How Do Requested Credit Amounts Differ Between Applicants With and Without Payment Difficulty?
 
 The amount of credit requested may be related to an applicant's ability to repay the loan. Credit amounts are compared between applicants who did and did not experience payment difficulty.
 ```{r}
@@ -330,9 +344,9 @@ credit_summary <- application_train |>
 
 credit_summary
 ```
-Applicants who experienced payment difficulty had somewhat lower credit amounts than applicants without payment difficulty. The median credit amount was 497,520 for applicants with payment difficulty compared with 517,788 for those without payment difficulty. Average credit amounts showed a similar pattern. This suggests that credit amount may be associated with payment difficulty, although the difference alone does not indicate that credit amount causes repayment problems.
+Applicants with payment difficulty had a somewhat lower median requested credit amount than applicants without payment difficulty. The median credit amount was 497,520 for applicants with payment difficulty compared with 517,788 for those without payment difficulty. Although the difference is not large, it suggests that requested credit amount may contain some information related to payment difficulty. Therefore, credit amount should be retained and evaluated as a potential predictor during modeling.
 
-### Relationships Among Financial Variables
+### What Relationships Exist Among Key Financial Variables Such as Income, Credit Amount, and Annuity Amount?
 
 Income, credit amount, and loan annuity are examined together to determine whether these financial variables are strongly related. Strong relationships between predictors may be important to consider during later data preparation and modeling.
 ```{r}
@@ -341,12 +355,14 @@ application_train |>
   select(AMT_INCOME_TOTAL, AMT_CREDIT, AMT_ANNUITY) |>
   cor(use = "complete.obs")
 ```
-Income has relatively weak correlations with both credit amount and annuity amount. In contrast, credit amount and annuity amount have a strong positive correlation of approximately 0.77. This indicates that larger credit amounts tend to be associated with larger annuity payments. The strong relationship between these variables should be considered during later data preparation and modeling because they may contain overlapping information.
+The financial variables show different levels of association with one another. AMT_CREDIT and AMT_ANNUITY have a relatively strong positive correlation of approximately 0.77, which is reasonable because larger loans generally require larger annuity payments. In contrast, applicant income has much weaker relationships with credit and annuity amounts. The strong relationship between credit and annuity suggests that these variables may contain overlapping information. Both should still be evaluated during modeling, but their relationship should be considered when assessing their predictive contribution.
 
 # Conclusion
-The exploratory analysis identified several important characteristics of the Home Credit application data. The training data are highly imbalanced, with approximately 8.1% of applicants experiencing payment difficulty. Several variables contain substantial missingness, particularly housing and property-related variables, and DAYS_EMPLOYED contains the special value 365243 for approximately 18% of training records. Income also contains extreme values that may require additional consideration during data preparation.
-The exploratory results also identified several relationships that may be useful for later modeling. Applicants with payment difficulty were younger on average and had lower median income and somewhat lower credit amounts than applicants without payment difficulty. Credit amount and annuity amount were also strongly positively correlated, indicating potentially overlapping information between these variables.
-The next stage of the project should address the identified data-quality issues before predictive modeling. This includes determining appropriate treatment for missing values, handling the special DAYS_EMPLOYED value, evaluating extreme income values, and preparing categorical and numeric variables for modeling. The class imbalance in TARGET should also be considered when evaluating predictive models. These decisions will be made during the data preparation and feature engineering stage.
+The exploratory analysis identified several important characteristics and data-quality issues in the Home Credit application data. Payment difficulty occurs in approximately 8.1% of the training applications, creating a substantial class imbalance that should be considered when evaluating predictive models. Several housing and property variables contain more than 65% missing values and should be evaluated individually during data preparation to determine whether they provide enough information to retain or impute. Missingness in COMMONAREA_AVG was also associated with payment difficulty, with an 8.57% payment-difficulty rate when the value was missing compared with 6.91% when it was not missing. This suggests that missingness itself may contain useful predictive information. In addition, DAYS_EMPLOYED contains the special value 365243 for approximately 18.0% of applications and should be treated separately rather than as a valid employment duration.
+
+The EDA also identified several variables that may contain useful information for predicting payment difficulty. Applicants with payment difficulty were younger on average, with an average age of 40.8 years compared with 44.2 years for applicants without payment difficulty. They also had a lower median income of 135,000 compared with 148,500 and a somewhat lower median requested credit amount of 497,520 compared with 517,788. These relationships do not establish causation, but they suggest that age, income, and credit characteristics should be evaluated as potential predictors during modeling. AMT_CREDIT and AMT_ANNUITY were also strongly positively correlated at approximately 0.77, indicating that they may contain overlapping information.
+
+Overall, the EDA supports the business problem identified at the beginning of the project: payment difficulty appears to be associated with multiple aspects of an applicant's financial and personal characteristics rather than a single variable. The analysis did not change the planned predictive-classification approach, but it clarified important data-preparation decisions and identified several variables and relationships that should be evaluated further during feature engineering and modeling.
 
 # AI Use
-ChatGPT was used to assist with developing and debugging R code, organizing the exploratory analysis, and improving the clarity of written interpretations. All code was run and reviewed in Positron, and the resulting outputs were examined before being included in the notebook.
+ChatGPT was used to assist with developing and debugging R code, organizing the exploratory analysis, and improving the clarity of written interpretations. All code was run in Positron, and the resulting tables and visualizations were reviewed before conclusions were added to the notebook. AI was useful for generating and troubleshooting code, while reviewing the outputs was necessary to determine which findings were meaningful for the Home Credit business problem and what decisions should be carried forward into data preparation and modeling.
