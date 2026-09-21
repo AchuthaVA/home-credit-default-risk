@@ -1,0 +1,352 @@
+---
+title: "Home Credit Default Risk: Exploratory Data Analysis"
+author: "Achuthasai Valluru"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    code-tools: true
+execute:
+  warning: false
+  message: false
+---
+# Introduction
+Home Credit provides consumer financing to customers who may have limited or no traditional credit history. The business problem is to distinguish applicants who are more likely to experience payment difficulties from applicants who are capable of repayment. Better identification of credit risk could help Home Credit reduce losses associated with payment difficulties while avoiding unnecessary rejection of applicants who are likely to repay.
+
+The purpose of this exploratory data analysis is to understand the application data, identify data-quality issues that may affect later modeling, and investigate applicant characteristics that may be associated with payment difficulty.
+
+## EDA Questions
+
+The analysis will address the following questions:
+
+1. How common is payment difficulty in the training data?
+2. Which applicant demographic characteristics appear to be associated with payment difficulty?
+3. How do income, requested credit amount, annuity amount, and other financial characteristics differ between applicants with and without payment difficulties?
+4. Do employment history and age appear to be associated with payment difficulty?
+5. Do external credit-score variables show a relationship with payment difficulty?
+6. Which variables contain substantial missing data, unusual values, or other data-quality problems that must be addressed before modeling?
+7. Are the training and test datasets structurally consistent enough to support the planned predictive analysis?
+
+# Description of the Data
+```{r}
+# Load packages used for data manipulation and visualization
+library(tidyverse)
+
+# Read the required Home Credit application datasets
+application_train <- read_csv("Data/application_train.csv", show_col_types = FALSE)
+application_test <- read_csv("Data/application_test.csv", show_col_types = FALSE)
+```
+## Dataset Dimensions
+
+The first step is to examine the size of the training and test datasets.
+
+```{r}
+# Report the number of rows and columns in each application dataset
+data.frame(
+  Dataset = c("Training", "Test"),
+  Rows = c(nrow(application_train), nrow(application_test)),
+  Columns = c(ncol(application_train), ncol(application_test))
+)
+```
+The training dataset contains 307,511 applications and 122 variables, while the test dataset contains 48,744 applications and 121 variables. The one-column difference is expected because the training data contain the `TARGET` variable indicating whether an applicant experienced payment difficulty, while the test data require this outcome to be predicted. Before modeling, the remaining variables should be checked to confirm that the training and test datasets have consistent structures.
+
+## Training and Test Structure
+
+Because the training dataset contains one additional column, the column names are compared to determine whether `TARGET` is the only structural difference.
+
+```{r}
+# Identify columns that appear in only one of the two application datasets
+train_only <- setdiff(names(application_train), names(application_test))
+test_only <- setdiff(names(application_test), names(application_train))
+
+data.frame(
+  Comparison = c("Training only", "Test only"),
+  Columns = c(
+    paste(train_only, collapse = ", "),
+    paste(test_only, collapse = ", ")
+  )
+)
+```
+The comparison confirms that TARGET is the only column present in the training data but absent from the test data. All predictor columns are shared between the two datasets. This is the expected structure for a supervised prediction problem: the training data provide known outcomes for model development, while the test data contain the same applicant information without the outcome. Therefore, no predictor columns need to be reconciled between the two datasets based on column names.
+
+## Grain and Primary Key
+
+The application datasets are expected to contain one row per loan application. The uniqueness of `SK_ID_CURR` is checked to determine whether it can serve as the primary key.
+```{r}
+# Check whether SK_ID_CURR uniquely identifies each row in the application datasets
+data.frame(
+  Dataset = c("Training", "Test"),
+  Rows = c(nrow(application_train), nrow(application_test)),
+  Unique_SK_ID_CURR = c(
+    n_distinct(application_train$SK_ID_CURR),
+    n_distinct(application_test$SK_ID_CURR)
+  ),
+  Duplicate_SK_ID_CURR = c(
+    sum(duplicated(application_train$SK_ID_CURR)),
+    sum(duplicated(application_test$SK_ID_CURR))
+  )
+)
+```
+The number of unique SK_ID_CURR values equals the number of rows in both datasets, and no duplicate identifiers were found. This confirms that SK_ID_CURR uniquely identifies each application record in both the training and test data. For this analysis, the application tables therefore have a grain of one row per current loan application, with SK_ID_CURR serving as the primary key. No duplicate application records need to be removed based on this identifier.
+
+## Variable Groups
+
+The application datasets contain many variables describing different aspects of an applicant and the requested loan. The Home Credit data dictionary is used to better understand the meaning of these variables and organize the information available for exploratory analysis.
+
+```{r}
+# Load the Home Credit data dictionary
+column_description <- read_csv(
+  "Data/HomeCredit_columns_description.csv",
+  show_col_types = FALSE
+)
+
+# Preview the structure of the data dictionary
+glimpse(column_description)
+```
+Based on the data dictionary, the application data include several major groups of information that may be useful for understanding payment difficulty. These include applicant demographics and household characteristics, employment and income information, loan and annuity characteristics, housing and property information, external credit scores, contact and document indicators, regional information, and credit bureau inquiry information. The TARGET variable is the outcome in the training data and indicates whether an applicant experienced payment difficulties. These groups provide different perspectives on an applicant's financial situation and may contain useful predictors of repayment risk.
+
+# Data Integrity
+## Missing Values
+
+Missing data can affect both exploratory analysis and later predictive modeling. The training data are examined to identify variables with substantial missingness and determine which variables may require special treatment during data preparation.
+
+```{r}
+# Calculate the number and percentage of missing values for each variable
+missing_summary <- application_train |>
+  summarise(across(everything(), ~ sum(is.na(.)))) |>
+  pivot_longer(
+    cols = everything(),
+    names_to = "Variable",
+    values_to = "Missing"
+  ) |>
+  mutate(
+    Percent_Missing = Missing / nrow(application_train) * 100
+  ) |>
+  arrange(desc(Percent_Missing))
+
+# Display the variables with the highest percentages of missing values
+missing_summary |>
+  slice_head(n = 15)
+```
+The missing-value analysis shows substantial missingness in several variables, particularly variables describing housing and property characteristics. COMMONAREA_AVG, COMMONAREA_MODE, and COMMONAREA_MEDI each have approximately 69.9% missing values, while several apartment, floor, and building-related variables are missing for more than 65% of applications. This level of missingness could limit the usefulness of these variables and may affect later modeling. During data preparation, variables with very high missingness should be evaluated before deciding whether to retain, impute, or exclude them rather than automatically removing all incomplete records.
+
+## Unusual Values
+
+Several variables represent applicant characteristics and time measurements. Selected variables are examined for unusual or potentially unrealistic values that could affect interpretation or later modeling.
+
+```{r}
+# Examine ranges for selected numeric variables
+application_train |>
+  summarise(
+    Min_Days_Birth = min(DAYS_BIRTH, na.rm = TRUE),
+    Max_Days_Birth = max(DAYS_BIRTH, na.rm = TRUE),
+    Min_Days_Employed = min(DAYS_EMPLOYED, na.rm = TRUE),
+    Max_Days_Employed = max(DAYS_EMPLOYED, na.rm = TRUE),
+    Min_Income = min(AMT_INCOME_TOTAL, na.rm = TRUE),
+    Max_Income = max(AMT_INCOME_TOTAL, na.rm = TRUE),
+    Min_Credit = min(AMT_CREDIT, na.rm = TRUE),
+    Max_Credit = max(AMT_CREDIT, na.rm = TRUE)
+  )
+```
+```{r}
+# Investigate the unusual DAYS_EMPLOYED value
+application_train |>
+  summarise(
+    Records_365243 = sum(DAYS_EMPLOYED == 365243, na.rm = TRUE),
+    Percent_365243 = mean(DAYS_EMPLOYED == 365243, na.rm = TRUE) * 100
+  )
+```
+The value 365243 appears in 55,374 records, representing approximately 18.0% of the training data. This value is not a realistic number of days employed and appears to represent a special value rather than an actual employment duration. During data preparation, this value should therefore be treated separately rather than interpreted as a valid number of employment days.
+
+### DAYS_BIRTH Check
+
+`DAYS_BIRTH` contains negative values because age is recorded as the number of days before the current loan application. Converting these values to approximate ages will make the range easier to interpret.
+
+```{r}
+# Convert DAYS_BIRTH to approximate age in years and examine the range
+application_train |>
+  summarise(
+    Min_Age = min(-DAYS_BIRTH / 365.25, na.rm = TRUE),
+    Max_Age = max(-DAYS_BIRTH / 365.25, na.rm = TRUE),
+    Average_Age = mean(-DAYS_BIRTH / 365.25, na.rm = TRUE)
+  )
+```
+  After converting DAYS_BIRTH from days to approximate years, applicant ages range from 20.5 to 69.1 years, with an average age of 43.9 years. These values appear reasonable for loan applicants. Therefore, the negative values in DAYS_BIRTH reflect how the variable is recorded rather than a data-quality problem.
+
+### Categorical Value Check
+
+Selected categorical variables are examined to identify unusual or unexpected category values that may require cleaning before modeling.
+
+```{r}
+# Examine values in selected categorical variables
+application_train |>
+  count(CODE_GENDER)
+
+application_train |>
+  count(NAME_FAMILY_STATUS)
+
+application_train |>
+  count(NAME_INCOME_TYPE)
+```
+The categorical-value check identified a small number of potentially unusual values. CODE_GENDER contains 4 records coded as XNA, while NAME_FAMILY_STATUS contains 2 records coded as Unknown. These values should be reviewed during data preparation to determine how they should be handled. NAME_INCOME_TYPE also contains several rare categories, but these represent interpretable income types and should not be treated as data errors solely because of their low frequency.
+
+# Exploratory Results
+
+## Payment Difficulty
+
+The `TARGET` variable identifies whether an applicant experienced payment difficulties. Examining its distribution shows how common payment difficulty is in the training data and whether the outcome is balanced.
+
+```{r}
+# Calculate the number and percentage of applicants by TARGET outcome
+target_summary <- application_train |>
+  count(TARGET) |>
+  mutate(
+    Percent = n / sum(n) * 100
+  )
+
+target_summary
+```
+```{r}
+# Visualize the distribution of the TARGET outcome
+ggplot(target_summary, aes(x = factor(TARGET), y = Percent)) +
+  geom_col() +
+  geom_text(
+    aes(label = paste0(round(Percent, 1), "%")),
+    vjust = -0.5
+  ) +
+  labs(
+    title = "Payment Difficulty in the Training Data",
+    x = "Payment Difficulty",
+    y = "Percentage of Applicants"
+  ) +
+  scale_x_discrete(
+    labels = c(
+      "0" = "No Payment Difficulty",
+      "1" = "Payment Difficulty"
+    )
+  ) +
+  theme_minimal()
+```
+Payment difficulty is relatively uncommon in the training data. Of the 307,511 applications, 24,825 (8.1%) are associated with payment difficulty, while 282,686 (91.9%) are not. This indicates a substantial class imbalance in the target variable. This imbalance should be considered during modeling because measures such as overall accuracy could appear high even if a model performs poorly at identifying applicants who experience payment difficulties.
+
+## Applicant Demographics
+
+### Age and Payment Difficulty
+
+Applicant age is examined to determine whether payment difficulty varies across age groups. `DAYS_BIRTH` is converted to approximate age in years for easier interpretation.
+
+```{r}
+# Compare applicant age by payment difficulty
+age_summary <- application_train |>
+  mutate(
+    Age = -DAYS_BIRTH / 365.25
+  ) |>
+  group_by(TARGET) |>
+  summarise(
+    Applicants = n(),
+    Average_Age = mean(Age, na.rm = TRUE),
+    Median_Age = median(Age, na.rm = TRUE)
+  )
+
+age_summary
+```
+Applicants who experienced payment difficulty were younger on average than applicants who did not. The average age was approximately 40.8 years for applicants with payment difficulty compared with 44.2 years for applicants without payment difficulty. The median ages show a similar pattern, at 39.1 and 43.5 years, respectively. This suggests that age may be associated with payment difficulty and could be useful to examine further during modeling.
+```{r}
+# Visualize age distribution by payment difficulty
+application_train |>
+  mutate(
+    Age = -DAYS_BIRTH / 365.25,
+    Payment_Difficulty = factor(
+      TARGET,
+      levels = c(0, 1),
+      labels = c("No Payment Difficulty", "Payment Difficulty")
+    )
+  ) |>
+  ggplot(aes(x = Age, fill = Payment_Difficulty)) +
+  geom_density(alpha = 0.5) +
+  labs(
+    title = "Age Distribution by Payment Difficulty",
+    x = "Applicant Age (Years)",
+    y = "Density",
+    fill = "Payment Difficulty"
+  ) +
+  theme_minimal()
+```
+The age distributions show that applicants with payment difficulty tend to be younger than applicants without payment difficulty. The payment-difficulty group is more concentrated among younger applicants, while applicants without payment difficulty have relatively greater representation at older ages. This pattern is consistent with the difference in average age observed above and suggests that age may be associated with repayment risk.
+
+### Income and Payment Difficulty
+
+Applicant income is examined to determine whether income differs between applicants who did and did not experience payment difficulties. Because unusually large income values were identified during the initial data checks, both the average and median are compared.
+```{r}
+# Compare income by payment difficulty
+income_summary <- application_train |>
+  group_by(TARGET) |>
+  summarise(
+    Applicants = n(),
+    Average_Income = mean(AMT_INCOME_TOTAL, na.rm = TRUE),
+    Median_Income = median(AMT_INCOME_TOTAL, na.rm = TRUE)
+  )
+
+income_summary
+```
+Applicants who experienced payment difficulty had a lower median income than applicants without payment difficulty. The median income was 135,000 for applicants with payment difficulty compared with 148,500 for those without payment difficulty. The average incomes were more similar, which may partly reflect the influence of unusually large income values. This suggests that income may be associated with payment difficulty, but the distribution and outliers should be considered before modeling.
+```{r}
+# Compare income distributions by payment difficulty
+application_train |>
+  mutate(
+    Payment_Difficulty = factor(
+      TARGET,
+      levels = c(0, 1),
+      labels = c("No Payment Difficulty", "Payment Difficulty")
+    )
+  ) |>
+  ggplot(aes(x = Payment_Difficulty, y = AMT_INCOME_TOTAL)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(
+    title = "Income Distribution by Payment Difficulty",
+    x = "Payment Difficulty",
+    y = "Applicant Income (Log Scale)"
+  ) +
+  theme_minimal()
+```
+The income distributions overlap considerably between the two groups, although applicants with payment difficulty have a somewhat lower median income. The plot also shows several extreme income values, including a particularly large outlier. These values should be examined during data preparation because they may influence summary statistics and later modeling.
+
+## Loan Characteristics
+
+### Credit Amount and Payment Difficulty
+
+The amount of credit requested may be related to an applicant's ability to repay the loan. Credit amounts are compared between applicants who did and did not experience payment difficulty.
+```{r}
+# Compare credit amount by payment difficulty
+credit_summary <- application_train |>
+  group_by(TARGET) |>
+  summarise(
+    Applicants = n(),
+    Average_Credit = mean(AMT_CREDIT, na.rm = TRUE),
+    Median_Credit = median(AMT_CREDIT, na.rm = TRUE)
+  )
+
+credit_summary
+```
+Applicants who experienced payment difficulty had somewhat lower credit amounts than applicants without payment difficulty. The median credit amount was 497,520 for applicants with payment difficulty compared with 517,788 for those without payment difficulty. Average credit amounts showed a similar pattern. This suggests that credit amount may be associated with payment difficulty, although the difference alone does not indicate that credit amount causes repayment problems.
+
+### Relationships Among Financial Variables
+
+Income, credit amount, and loan annuity are examined together to determine whether these financial variables are strongly related. Strong relationships between predictors may be important to consider during later data preparation and modeling.
+```{r}
+# Examine correlations among key financial variables
+application_train |>
+  select(AMT_INCOME_TOTAL, AMT_CREDIT, AMT_ANNUITY) |>
+  cor(use = "complete.obs")
+```
+Income has relatively weak correlations with both credit amount and annuity amount. In contrast, credit amount and annuity amount have a strong positive correlation of approximately 0.77. This indicates that larger credit amounts tend to be associated with larger annuity payments. The strong relationship between these variables should be considered during later data preparation and modeling because they may contain overlapping information.
+
+# Conclusion
+The exploratory analysis identified several important characteristics of the Home Credit application data. The training data are highly imbalanced, with approximately 8.1% of applicants experiencing payment difficulty. Several variables contain substantial missingness, particularly housing and property-related variables, and DAYS_EMPLOYED contains the special value 365243 for approximately 18% of training records. Income also contains extreme values that may require additional consideration during data preparation.
+The exploratory results also identified several relationships that may be useful for later modeling. Applicants with payment difficulty were younger on average and had lower median income and somewhat lower credit amounts than applicants without payment difficulty. Credit amount and annuity amount were also strongly positively correlated, indicating potentially overlapping information between these variables.
+The next stage of the project should address the identified data-quality issues before predictive modeling. This includes determining appropriate treatment for missing values, handling the special DAYS_EMPLOYED value, evaluating extreme income values, and preparing categorical and numeric variables for modeling. The class imbalance in TARGET should also be considered when evaluating predictive models. These decisions will be made during the data preparation and feature engineering stage.
+
+# AI Use
+ChatGPT was used to assist with developing and debugging R code, organizing the exploratory analysis, and improving the clarity of written interpretations. All code was run and reviewed in Positron, and the resulting outputs were examined before being included in the notebook.
