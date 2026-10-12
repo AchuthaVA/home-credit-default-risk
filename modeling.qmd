@@ -1,0 +1,1503 @@
+---
+title: "Home Credit Default Risk: Predictive Modeling"
+author: "Achuthasai Valluru"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+
+# Introduction
+
+Home Credit provides consumer financing to applicants who may have limited or no traditional credit history. The goal of this project is to develop a predictive model that identifies applicants who are more likely to experience payment difficulties.
+
+The exploratory data analysis (EDA) showed that approximately 8.1% of applicants experienced payment difficulties. This creates a class imbalance problem because most applicants belong to the non-default group.
+
+This modeling analysis will establish a benchmark, compare several classification models, evaluate performance using cross-validation and ROC AUC, investigate class imbalance, and select a final model for predicting payment difficulties.
+
+ROC AUC will be the primary evaluation metric because accuracy alone can be misleading when the target classes are imbalanced.
+
+# Data Preparation
+
+The modeling workflow uses the existing `data_preparation.R` script developed from the EDA findings.
+
+The preparation steps include cleaning unusual values, creating applicant age and employment-duration features, calculating financial ratios, and preserving missingness information. The script also uses training-derived parameters to apply consistent transformations to the training and test datasets.
+
+Additional preprocessing required by individual models will be fitted using training data only to avoid data leakage.
+```{r}
+# Load required packages
+library(tidyverse)
+library(rsample)
+library(pROC)
+library(rpart)
+library(ranger)
+
+# Load our existing preparation functions
+source("data_preparation.R")
+
+# Read application datasets
+train_data <- read_csv(
+  "Data/application_train.csv",
+  show_col_types = FALSE
+)
+
+test_data <- read_csv(
+  "Data/application_test.csv",
+  show_col_types = FALSE
+)
+
+# Learn preparation parameters from training data
+prep_parameters <- learn_preparation_parameters(train_data)
+
+# Prepare both datasets
+train_prepared <- prepare_application_data(
+  train_data,
+  prep_parameters
+)
+
+test_prepared <- prepare_application_data(
+  test_data,
+  prep_parameters
+)
+
+# Check dataset dimensions
+dim(train_prepared)
+dim(test_prepared)
+```
+
+# Modeling Process
+
+## Benchmark: Majority-Class Classifier
+
+The first step is to establish a benchmark using a majority-class classifier. Because approximately 91.9% of applicants did not experience payment difficulties, this classifier predicts that every applicant belongs to the non-default group.
+
+This benchmark helps determine whether more advanced models provide meaningful improvements over simply predicting the most common outcome.
+
+```{r}
+# Calculate the majority class
+majority_class <- as.integer(
+  names(which.max(table(train_prepared$TARGET)))
+)
+
+# Predict the majority class for every applicant
+benchmark_predictions <- rep(
+  majority_class,
+  nrow(train_prepared)
+)
+
+# Calculate benchmark accuracy
+benchmark_accuracy <- mean(
+  benchmark_predictions == train_prepared$TARGET
+)
+
+# A constant-score classifier has ROC AUC of 0.50
+benchmark_auc <- 0.50
+
+# Display benchmark performance
+tibble(
+  Model = "Majority Class Benchmark",
+  Accuracy = benchmark_accuracy,
+  AUC = benchmark_auc
+)
+```
+
+## Logistic Regression
+
+Logistic regression estimates the probability that an applicant will experience payment difficulties. This first model uses applicant age, income, credit amount, annuity amount, and two engineered financial ratios.
+
+Stratified five-fold cross-validation is used to estimate out-of-sample ROC AUC while maintaining approximately the same proportion of payment difficulties in each fold.
+
+```{r}
+set.seed(6812)
+
+# Select a manageable sample for initial model comparison
+model_data <- train_prepared |>
+  select(
+    TARGET,
+    AGE_YEARS,
+    AMT_INCOME_TOTAL,
+    AMT_CREDIT,
+    AMT_ANNUITY,
+    ANNUITY_INCOME_RATIO,
+    CREDIT_GOODS_RATIO
+  ) |>
+  mutate(TARGET = as.integer(TARGET)) |>
+  filter(
+    if_all(
+      -TARGET,
+      ~ !is.na(.) & is.finite(.)
+    )
+  ) |>
+  group_by(TARGET) |>
+  slice_sample(prop = 10000 / nrow(train_prepared)) |>
+  ungroup()
+
+# Create stratified cross-validation folds
+folds <- vfold_cv(
+  model_data,
+  v = 5,
+  strata = TARGET
+)
+
+# Train and evaluate within each fold
+logistic_auc <- map_dbl(folds$splits, function(split) {
+
+  training <- analysis(split)
+  validation <- assessment(split)
+
+  model <- glm(
+    TARGET ~ .,
+    data = training,
+    family = binomial()
+  )
+
+  probabilities <- predict(
+    model,
+    newdata = validation,
+    type = "response"
+  )
+
+  as.numeric(
+    auc(
+      roc(
+        validation$TARGET,
+        probabilities,
+        quiet = TRUE,
+        direction = "<"
+      )
+    )
+  )
+})
+
+# Report cross-validation performance
+tibble(
+  Model = "Logistic Regression",
+  Mean_AUC = mean(logistic_auc),
+  SD_AUC = sd(logistic_auc)
+)
+```
+The logistic regression model achieved a mean five-fold cross-validation AUC of 0.602, with a standard deviation of 0.0329. This exceeds the majority-class benchmark AUC of 0.50, indicating that the model provides some ability to distinguish applicants who experience payment difficulties. However, its performance remains modest, suggesting that more flexible models and additional predictors should be explored.
+
+## Decision Tree
+
+```{r}
+# Use the same cross-validation folds as logistic regression
+# so the model comparison is consistent.
+
+decision_tree_auc <- purrr::map_dbl(folds$splits, function(split) {
+
+  training <- rsample::analysis(split)
+  validation <- rsample::assessment(split)
+
+  # Train a decision tree classifier
+  model <- rpart::rpart(
+    factor(TARGET) ~ .,
+    data = training,
+    method = "class",
+    control = rpart::rpart.control(
+      cp = 0.001,
+      minsplit = 20,
+      maxdepth = 5
+    )
+  )
+
+  # Predict probability of payment difficulty (TARGET = 1)
+  probabilities <- predict(
+    model,
+    newdata = validation,
+    type = "prob"
+  )[, "1"]
+
+  # Calculate validation AUC
+  as.numeric(
+    pROC::auc(
+      pROC::roc(
+        response = validation$TARGET,
+        predictor = probabilities,
+        levels = c(0, 1),
+        direction = "<",
+        quiet = TRUE
+      )
+    )
+  )
+})
+
+# Display cross-validation results
+tibble(
+  Model = "Decision Tree",
+  Mean_AUC = mean(decision_tree_auc),
+  SD_AUC = sd(decision_tree_auc)
+)
+```
+The decision tree achieved a mean five-fold cross-validation AUC of 0.505, with a standard deviation of 0.0117. This is only slightly above the benchmark AUC of 0.50 and substantially below the logistic regression AUC of 0.602. Under the current predictor selection and model settings, the decision tree does not provide a meaningful improvement. Logistic regression remains the stronger candidate for further evaluation.
+
+## Random Forest
+```{r}
+# Use the same five cross-validation folds as previous models
+# for a fair comparison.
+
+set.seed(6812)
+
+random_forest_auc <- purrr::map_dbl(folds$splits, function(split) {
+
+  training <- rsample::analysis(split) |>
+  mutate(TARGET = factor(TARGET, levels = c(0, 1)))
+
+validation <- rsample::assessment(split) |>
+  mutate(TARGET = factor(TARGET, levels = c(0, 1)))
+
+  # Train a random forest with 100 trees
+  model <- ranger::ranger(
+    TARGET ~ .,
+    data = training,
+    num.trees = 100,
+    mtry = 3,
+    min.node.size = 10,
+    probability = TRUE,
+    seed = 6812
+  )
+
+  # Predict probability of payment difficulty (TARGET = 1)
+  probabilities <- predict(
+    model,
+    data = validation
+  )$predictions[, "1"]
+
+  # Calculate validation AUC
+  as.numeric(
+    pROC::auc(
+      pROC::roc(
+        response = validation$TARGET,
+        predictor = probabilities,
+        levels = c(0, 1),
+        direction = "<",
+        quiet = TRUE
+      )
+    )
+  )
+})
+
+# Display cross-validation results
+tibble(
+  Model = "Random Forest",
+  Mean_AUC = mean(random_forest_auc),
+  SD_AUC = sd(random_forest_auc)
+)
+```
+
+## Model Performance Comparison
+
+The three candidate models were evaluated using five-fold stratified cross-validation on the same sample.
+
+Logistic Regression achieved the highest mean AUC (0.602), followed by Random Forest (0.567) and Decision Tree (0.505). All three models were compared against the majority-class benchmark AUC of 0.500.
+
+Logistic Regression is currently the strongest candidate. However, its performance is still modest, so additional experiments with class imbalance and hyperparameter tuning are needed before selecting a final model.
+
+## Addressing Class Imbalance
+
+The Home Credit training dataset is highly imbalanced, with approximately 8.1% of applicants experiencing payment difficulties.
+
+To investigate whether balancing the classes improves predictive performance, I will compare the original Logistic Regression model with a model trained using class weights.
+
+Class weights give greater importance to the minority class (TARGET = 1) during model training. Both models will be evaluated using the same five-fold cross-validation splits and ROC AUC metric.
+
+```{r}
+# Compare weighted and unweighted logistic regression
+# Use the same five cross-validation folds for a fair comparison
+
+weighted_logistic_auc <- purrr::map_dbl(
+  folds$splits,
+  function(split) {
+
+    # Separate training and validation data
+    training <- rsample::analysis(split)
+    validation <- rsample::assessment(split)
+
+    # Calculate class frequencies using training data only
+    n_0 <- sum(training$TARGET == 0)
+    n_1 <- sum(training$TARGET == 1)
+
+    # Give higher weights to the minority class
+    training$case_weight <- ifelse(
+      training$TARGET == 1,
+      nrow(training) / (2 * n_1),
+      nrow(training) / (2 * n_0)
+    )
+
+    # Store weights separately
+fold_weights <- training$case_weight
+
+# Remove weights from predictor data
+training_model <- training |>
+  dplyr::select(-case_weight)
+
+# Fit weighted logistic regression
+model <- glm(
+  TARGET ~ .,
+  data = training_model,
+  family = binomial(),
+  weights = fold_weights
+)
+
+    # Predict probabilities on validation data
+    probabilities <- predict(
+      model,
+      newdata = validation,
+      type = "response"
+    )
+
+    # Calculate validation ROC AUC
+    as.numeric(
+      pROC::auc(
+        pROC::roc(
+          response = validation$TARGET,
+          predictor = probabilities,
+          levels = c(0, 1),
+          direction = "<",
+          quiet = TRUE
+        )
+      )
+    )
+  }
+)
+
+# Compare original and weighted logistic regression
+tibble(
+  Model = c(
+    "Original Logistic Regression",
+    "Weighted Logistic Regression"
+  ),
+  Mean_AUC = c(
+    mean(logistic_auc),
+    mean(weighted_logistic_auc)
+  )
+)
+```
+Class weighting was tested to address the imbalance between applicants with and without payment difficulties. Both the original and weighted Logistic Regression models achieved a mean cross-validation ROC AUC of approximately 0.602. This suggests that class weighting did not meaningfully improve the model's ability to distinguish between the two groups. Therefore, the original Logistic Regression remains the preferred candidate at this stage.
+
+## Hyperparameter Tuning
+
+Random Forest hyperparameters were tuned to investigate whether adjusting model complexity improves predictive performance. A stratified sample of the prepared training data was used to reduce computation time. Three-fold cross-validation was used to compare candidate settings based on ROC AUC.
+```{r}
+# Tune Random Forest using a manageable sample
+set.seed(6812)
+
+tuning_data <- model_data |>
+  dplyr::group_by(TARGET) |>
+  dplyr::slice_sample(prop = 5000 / nrow(model_data)) |>
+  dplyr::ungroup()
+
+# Create three stratified cross-validation folds
+tuning_folds <- rsample::vfold_cv(
+  tuning_data,
+  v = 3,
+  strata = TARGET
+)
+
+# Randomly select six hyperparameter combinations
+tuning_grid <- tidyr::crossing(
+  mtry = c(2, 3, 4, 5),
+  min.node.size = c(5, 10, 20)
+) |>
+  dplyr::slice_sample(n = 6)
+
+# Evaluate each combination
+tuning_results <- purrr::pmap_dfr(
+  tuning_grid,
+  function(mtry, min.node.size) {
+
+    fold_auc <- purrr::map_dbl(
+      tuning_folds$splits,
+      function(split) {
+
+        training <- rsample::analysis(split)
+        validation <- rsample::assessment(split)
+
+        model <- ranger::ranger(
+          TARGET ~ .,
+          data = training,
+          num.trees = 100,
+          mtry = mtry,
+          min.node.size = min.node.size,
+          probability = TRUE,
+          seed = 6812
+        )
+
+        probabilities <- predict(
+  model,
+  data = validation
+)$predictions[, 2]
+
+        as.numeric(
+          pROC::auc(
+            pROC::roc(
+              response = validation$TARGET,
+              predictor = probabilities,
+              levels = c(0, 1),
+              direction = "<",
+              quiet = TRUE
+            )
+          )
+        )
+      }
+    )
+
+    tibble(
+      mtry = mtry,
+      min.node.size = min.node.size,
+      Mean_AUC = mean(fold_auc),
+      SD_AUC = sd(fold_auc)
+    )
+  }
+)
+
+# Show configurations ranked by AUC
+tuning_results |>
+  dplyr::arrange(dplyr::desc(Mean_AUC))
+```
+Six Random Forest hyperparameter configurations were evaluated using three-fold cross-validation. The highest mean ROC AUC was 0.557, achieved with mtry = 2 and min.node.size = 20. Although tuning identified the best configuration among those tested, the tuned Random Forest did not outperform the original Logistic Regression model, which achieved an AUC of 0.602. Therefore, Logistic Regression remains the preferred model based on the current results.
+
+## Final Model Training
+
+Logistic Regression was selected as the final model candidate because it achieved the highest cross-validation ROC AUC among the models evaluated. Class weighting did not meaningfully improve its performance, and Random Forest hyperparameter tuning did not produce a stronger result.
+
+The final Logistic Regression model will be trained using the full prepared training dataset and used to generate predicted probabilities for the Kaggle test dataset.
+
+```{r}
+# Select the same predictors used during model comparison
+final_predictors <- c(
+  "AGE_YEARS",
+  "AMT_INCOME_TOTAL",
+  "AMT_CREDIT",
+  "AMT_ANNUITY",
+  "ANNUITY_INCOME_RATIO",
+  "CREDIT_GOODS_RATIO"
+)
+
+# Prepare full training data
+final_train <- train_prepared |>
+  dplyr::select(TARGET, dplyr::all_of(final_predictors)) |>
+  dplyr::mutate(TARGET = as.integer(TARGET)) |>
+  dplyr::filter(
+    dplyr::if_all(
+      -TARGET,
+      ~ !is.na(.) & is.finite(.)
+    )
+  )
+
+# Train final logistic regression model
+final_model <- glm(
+  TARGET ~ .,
+  data = final_train,
+  family = binomial()
+)
+
+# Report number of observations used
+tibble::tibble(
+  Model = "Final Logistic Regression",
+  Training_Observations = nrow(final_train)
+)
+```
+
+## Kaggle Submission
+
+The final Logistic Regression model is used to predict the probability of payment difficulty for applicants in the test dataset. Missing predictor values are handled using median values calculated from the training data.
+```{r}
+# Prepare test predictors
+final_test <- test_prepared |>
+  dplyr::select(dplyr::all_of(final_predictors))
+
+# Calculate medians using training data only
+train_medians <- vapply(
+  final_train[final_predictors],
+  median,
+  numeric(1),
+  na.rm = TRUE
+)
+
+# Replace missing or non-finite test values
+for (column in final_predictors) {
+  invalid <- !is.finite(final_test[[column]])
+  final_test[[column]][invalid] <- train_medians[[column]]
+}
+
+# Generate predicted probabilities
+test_probabilities <- predict(
+  final_model,
+  newdata = final_test,
+  type = "response"
+)
+
+# Create Kaggle submission
+submission <- tibble::tibble(
+  SK_ID_CURR = test_prepared$SK_ID_CURR,
+  TARGET = as.numeric(test_probabilities)
+)
+
+# Verify submission
+stopifnot(
+  nrow(submission) == nrow(test_prepared),
+  !anyNA(submission$TARGET),
+  all(submission$TARGET >= 0 & submission$TARGET <= 1)
+)
+
+# Save submission locally
+readr::write_csv(submission, "kaggle_submission.csv")
+
+# Display first six predictions
+head(submission)
+```
+
+## Supplementary Data Experiment: Bureau Credit History
+
+The baseline Logistic Regression model used six predictors from
+the application dataset and achieved a cross-validation ROC AUC
+of 0.602.
+
+This experiment investigates whether adding historical credit
+information from bureau.csv improves predictive performance.
+
+### Prepare Bureau-Enhanced Data
+
+```{r}
+# Load Bureau data and create applicant-level features
+bureau <- readr::read_csv(
+  "Data/bureau.csv",
+  show_col_types = FALSE
+)
+
+bureau_features <- aggregate_bureau_data(bureau)
+
+# Join Bureau features to application data
+train_bureau <- train_prepared |>
+  dplyr::left_join(bureau_features, by = "SK_ID_CURR")
+
+# Check that no applicants were duplicated
+stopifnot(nrow(train_bureau) == nrow(train_prepared))
+
+# Inspect the enhanced dataset
+dim(train_bureau)
+```
+
+### Logistic Regression with Bureau Features
+
+This experiment adds four credit-history features to the six
+predictors used in the baseline Logistic Regression model.
+
+The enhanced model will be evaluated using five-fold
+cross-validation to compare its performance with the baseline.
+
+```{r}
+# Combine original predictors with Bureau features
+bureau_predictors <- c(
+  final_predictors,
+  "BUREAU_LOAN_COUNT",
+  "BUREAU_ACTIVE_COUNT",
+  "BUREAU_TOTAL_DEBT",
+  "BUREAU_MAX_OVERDUE_DAYS"
+)
+
+# Prepare data for the enhanced model
+bureau_model_data <- train_bureau |>
+  dplyr::select(TARGET, dplyr::all_of(bureau_predictors)) |>
+  dplyr::mutate(TARGET = as.integer(TARGET))
+
+# Check missing values in the new features
+colSums(is.na(bureau_model_data))
+```
+
+### Create a Matched Bureau Comparison Sample
+
+The original modeling sample is reproduced with applicant IDs to
+ensure that the baseline and enhanced models use the same applicants.
+
+```{r}
+# Reproduce the original sample while retaining applicant IDs
+set.seed(6812)
+
+model_data_with_ids <- train_prepared |>
+  dplyr::select(
+    SK_ID_CURR,
+    TARGET,
+    dplyr::all_of(final_predictors)
+  ) |>
+  dplyr::mutate(TARGET = as.integer(TARGET)) |>
+  dplyr::filter(
+    dplyr::if_all(
+      -c(SK_ID_CURR, TARGET),
+      ~ !is.na(.) & is.finite(.)
+    )
+  ) |>
+  dplyr::group_by(TARGET) |>
+  dplyr::slice_sample(
+    prop = 10000 / nrow(train_prepared)
+  ) |>
+  dplyr::ungroup()
+
+# Verify that the original sample was reproduced
+stopifnot(
+  identical(
+    dplyr::select(model_data_with_ids, -SK_ID_CURR),
+    model_data
+  )
+)
+
+# Add Bureau features to the matched applicants
+bureau_sample <- model_data_with_ids |>
+  dplyr::left_join(
+    bureau_features,
+    by = "SK_ID_CURR"
+  )
+
+# Verify that no applicants were duplicated
+stopifnot(nrow(bureau_sample) == nrow(model_data))
+
+# Check the result
+dim(bureau_sample)
+```
+
+### Handle Missing Bureau Information
+
+Applicants without Bureau records are retained. A missing-history
+indicator identifies these applicants, while missing numeric Bureau
+features will be imputed within each training fold.
+
+```{r}
+bureau_sample <- bureau_sample |>
+  dplyr::mutate(
+    BUREAU_HISTORY_MISSING = as.integer(
+      is.na(BUREAU_LOAN_COUNT)
+    )
+  )
+
+# Check missing-history counts
+table(bureau_sample$BUREAU_HISTORY_MISSING)
+
+# Check sample size
+dim(bureau_sample)
+```
+
+### Three-Fold Cross-Validation Setup
+
+Both models will use the same applicants and validation folds
+to ensure a fair comparison.
+
+```{r}
+# Create three stratified folds
+set.seed(6812)
+
+bureau_folds <- rsample::vfold_cv(
+  bureau_sample,
+  v = 3,
+  strata = TARGET
+)
+
+# Verify the folds
+bureau_folds
+```
+
+### Compare Baseline and Bureau-Enhanced Logistic Regression
+
+Both models are evaluated using the same three stratified folds.
+Missing Bureau values are handled using training-fold information
+only to avoid data leakage.
+
+```{r}
+# Predictor lists
+baseline_vars <- final_predictors
+
+enhanced_vars <- c(
+  baseline_vars,
+  "BUREAU_LOAN_COUNT",
+  "BUREAU_ACTIVE_COUNT",
+  "BUREAU_TOTAL_DEBT",
+  "BUREAU_MAX_OVERDUE_DAYS",
+  "BUREAU_HISTORY_MISSING"
+)
+
+# Calculate ROC AUC for one model and one fold
+evaluate_logistic <- function(split, predictors) {
+
+  training <- rsample::analysis(split)
+  validation <- rsample::assessment(split)
+
+  # Keep only the outcome and selected predictors
+  training <- training |>
+    dplyr::select(TARGET, dplyr::all_of(predictors))
+
+  validation <- validation |>
+    dplyr::select(TARGET, dplyr::all_of(predictors))
+
+  # Impute missing values using training-fold medians
+  for (variable in predictors) {
+
+    missing_training <- is.na(training[[variable]]) |
+      !is.finite(training[[variable]])
+
+    missing_validation <- is.na(validation[[variable]]) |
+      !is.finite(validation[[variable]])
+
+    median_value <- median(
+      training[[variable]][!missing_training],
+      na.rm = TRUE
+    )
+
+    if (!is.finite(median_value)) {
+      median_value <- 0
+    }
+
+    training[[variable]][missing_training] <- median_value
+    validation[[variable]][missing_validation] <- median_value
+  }
+
+  # Train Logistic Regression
+  model <- glm(
+    TARGET ~ .,
+    data = training,
+    family = binomial()
+  )
+
+  # Predict payment-difficulty probabilities
+  probabilities <- predict(
+    model,
+    newdata = validation,
+    type = "response"
+  )
+
+  # Calculate ROC AUC
+  as.numeric(
+    pROC::auc(
+      response = validation$TARGET,
+      predictor = probabilities,
+      levels = c(0, 1),
+      direction = "<",
+      quiet = TRUE
+    )
+  )
+}
+
+# Evaluate both models on identical folds
+bureau_cv_results <- purrr::map_dfr(
+  seq_len(nrow(bureau_folds)),
+  function(i) {
+
+    split <- bureau_folds$splits[[i]]
+
+    tibble::tibble(
+      Fold = i,
+      Baseline_AUC = evaluate_logistic(
+        split, baseline_vars
+      ),
+      Bureau_AUC = evaluate_logistic(
+        split, enhanced_vars
+      )
+    )
+  }
+)
+
+# Compare results
+bureau_cv_results <- bureau_cv_results |>
+  dplyr::mutate(
+    Improvement = Bureau_AUC - Baseline_AUC
+  )
+
+bureau_cv_results
+
+# Calculate average performance
+bureau_cv_summary <- bureau_cv_results |>
+  dplyr::summarise(
+    Baseline_Mean_AUC = mean(Baseline_AUC),
+    Bureau_Mean_AUC = mean(Bureau_AUC),
+    Mean_Improvement = mean(Improvement)
+  )
+
+bureau_cv_summary
+```
+
+### Previous Application Features
+
+This experiment adds previous loan application information to
+the Bureau-enhanced model to evaluate whether it improves ROC AUC.
+
+```{r}
+# Load and aggregate previous applications
+previous <- readr::read_csv(
+  "Data/previous_application.csv",
+  show_col_types = FALSE
+)
+
+previous_features <- aggregate_previous_data(previous)
+
+# Add previous application features
+combined_sample <- bureau_sample |>
+  dplyr::left_join(
+    previous_features,
+    by = "SK_ID_CURR"
+  ) |>
+  dplyr::mutate(
+    PREV_HISTORY_MISSING = as.integer(
+      is.na(PREV_APP_COUNT)
+    )
+  )
+
+# Verify that all original applicants remain
+stopifnot(nrow(combined_sample) == nrow(bureau_sample))
+
+# Check the resulting dataset
+dim(combined_sample)
+```
+
+### Compare Bureau and Previous Application Features
+
+Both models use the same three cross-validation folds.
+Missing values are imputed using training-fold medians.
+
+```{r}
+# Bureau predictors from our previous experiment
+bureau_vars <- enhanced_vars
+
+# Add previous-application predictors
+combined_vars <- c(
+  bureau_vars,
+  "PREV_APP_COUNT",
+  "PREV_APPROVED_COUNT",
+  "PREV_REFUSED_COUNT",
+  "PREV_AVG_CREDIT",
+  "PREV_HISTORY_MISSING"
+)
+
+# Evaluate both models using the same fold assignments
+previous_cv_results <- purrr::map_dfr(
+  seq_len(nrow(bureau_folds)),
+  function(i) {
+
+    split <- bureau_folds$splits[[i]]
+
+    # Get original training and validation applicant IDs
+    training_ids <- rsample::analysis(split)$SK_ID_CURR
+    validation_ids <- rsample::assessment(split)$SK_ID_CURR
+
+    # Find matching rows in the combined dataset
+    training_rows <- match(
+      training_ids,
+      combined_sample$SK_ID_CURR
+    )
+
+    validation_rows <- match(
+      validation_ids,
+      combined_sample$SK_ID_CURR
+    )
+
+    # Ensure all applicants were matched
+    stopifnot(
+      !anyNA(training_rows),
+      !anyNA(validation_rows)
+    )
+
+    # Recreate the same fold with additional features
+    combined_split <- rsample::make_splits(
+      list(
+        analysis = training_rows,
+        assessment = validation_rows
+      ),
+      combined_sample
+    )
+
+    # Compare Bureau-only and combined models
+    tibble::tibble(
+      Fold = i,
+
+      Bureau_AUC = evaluate_logistic(
+        combined_split,
+        bureau_vars
+      ),
+
+      Combined_AUC = evaluate_logistic(
+        combined_split,
+        combined_vars
+      )
+    )
+  }
+)
+
+# Calculate improvement for each fold
+previous_cv_results <- previous_cv_results |>
+  dplyr::mutate(
+    Improvement = Combined_AUC - Bureau_AUC
+  )
+
+# Display fold results
+previous_cv_results
+
+# Calculate average performance
+previous_cv_summary <- previous_cv_results |>
+  dplyr::summarise(
+    Bureau_Mean_AUC = mean(Bureau_AUC),
+    Combined_Mean_AUC = mean(Combined_AUC),
+    Mean_Improvement = mean(Improvement)
+  )
+
+# Display summary
+previous_cv_summary
+```
+
+### Installment Payment Features
+
+This experiment adds historical installment payment behavior to the model containing application, Bureau, and previous application features.
+
+The objective is to evaluate whether payment history improves ROC AUC using the same three cross-validation folds.
+
+```{r}
+# Add installment payment features
+installments <- readr::read_csv(
+  "Data/installments_payments.csv",
+  show_col_types = FALSE
+)
+
+installment_features <- aggregate_installments_data(installments)
+
+installment_sample <- combined_sample |>
+  dplyr::left_join(
+    installment_features,
+    by = "SK_ID_CURR"
+  ) |>
+  dplyr::mutate(
+    INST_HISTORY_MISSING = as.integer(
+      is.na(INST_PAYMENT_COUNT)
+    )
+  )
+# Verify no applicants were duplicated
+stopifnot(
+  nrow(installment_sample) == nrow(combined_sample)
+)
+
+# Check dimensions and missing history
+dim(installment_sample)
+table(installment_sample$INST_HISTORY_MISSING)
+```
+
+### Compare Models With and Without Installment Features
+
+This experiment compares the existing model (Application, Bureau, and Previous Application features) with an enhanced model that also includes Installment Payment features.
+
+Both models use the same applicants and three stratified cross-validation folds. Missing values are imputed using medians calculated from each training fold to prevent data leakage.
+
+```{r}
+# Existing predictors from previous experiments
+existing_predictors <- c(
+  final_predictors,
+  "BUREAU_LOAN_COUNT",
+  "BUREAU_ACTIVE_COUNT",
+  "BUREAU_TOTAL_DEBT",
+  "BUREAU_MAX_OVERDUE_DAYS",
+  "BUREAU_HISTORY_MISSING",
+  "PREV_APP_COUNT",
+  "PREV_APPROVED_COUNT",
+  "PREV_REFUSED_COUNT",
+  "PREV_AVG_CREDIT",
+  "PREV_HISTORY_MISSING"
+)
+
+# Add installment payment predictors
+installment_predictors <- c(
+  existing_predictors,
+  "INST_PAYMENT_COUNT",
+  "INST_LATE_PAYMENT_RATE",
+  "INST_AVG_PAYMENT_DELAY",
+  "INST_TOTAL_SHORTFALL",
+  "INST_HISTORY_MISSING"
+)
+
+# Create three stratified folds using the enhanced dataset
+set.seed(6812)
+
+installment_folds <- rsample::vfold_cv(
+  installment_sample,
+  v = 3,
+  strata = TARGET
+)
+
+# Compare both models using identical validation folds
+installment_cv_results <- purrr::map_dfr(
+  seq_len(nrow(installment_folds)),
+  function(i) {
+
+    split <- installment_folds$splits[[i]]
+
+    # Existing model without installment features
+    existing_auc <- evaluate_logistic(
+      split,
+      existing_predictors
+    )
+
+    # Enhanced model with installment features
+    installment_auc <- evaluate_logistic(
+      split,
+      installment_predictors
+    )
+
+    tibble::tibble(
+      Fold = i,
+      Existing_AUC = existing_auc,
+      Installment_AUC = installment_auc,
+      Improvement = installment_auc - existing_auc
+    )
+  }
+)
+
+# Display ROC AUC for each fold
+installment_cv_results
+
+# Calculate average ROC AUC
+installment_cv_summary <- installment_cv_results |>
+  dplyr::summarise(
+    Existing_Mean_AUC = mean(Existing_AUC),
+    Installment_Mean_AUC = mean(Installment_AUC),
+    Mean_Improvement = mean(Improvement)
+  )
+
+# Display summary
+installment_cv_summary
+```
+
+### POS/CASH Balance Features
+
+This experiment evaluates whether previous loan repayment behavior from the POS/CASH balance dataset improves model performance.
+
+The comparison uses the same applicants and three stratified cross-validation folds. Missing values are imputed using training-fold medians.
+
+```{r}
+# Load POS/CASH balance data
+pos <- readr::read_csv(
+  "Data/POS_CASH_balance.csv",
+  show_col_types = FALSE
+)
+
+# Aggregate POS/CASH features
+pos_features <- aggregate_pos_data(pos)
+
+# Add POS/CASH features to the existing dataset
+pos_sample <- installment_sample |>
+  dplyr::left_join(
+    pos_features,
+    by = "SK_ID_CURR"
+  ) |>
+  dplyr::mutate(
+    POS_HISTORY_MISSING = as.integer(
+      is.na(POS_RECORD_COUNT)
+    )
+  )
+
+# Verify that no applicants were duplicated
+stopifnot(
+  nrow(pos_sample) == nrow(installment_sample)
+)
+
+# Inspect dataset and missing history
+dim(pos_sample)
+table(pos_sample$POS_HISTORY_MISSING)
+```
+
+### Compare Models With and Without POS/CASH Features
+
+This experiment evaluates whether POS/CASH repayment history improves predictive performance beyond the application, Bureau, previous application, and installment payment features.
+
+Both models use the same applicants and three stratified cross-validation folds.
+
+```{r}
+# Predictors from our previous best model
+pos_existing_predictors <- installment_predictors
+
+# Add POS/CASH features
+pos_predictors <- c(
+  pos_existing_predictors,
+  "POS_RECORD_COUNT",
+  "POS_AVG_DPD",
+  "POS_MAX_DPD",
+  "POS_LATE_PAYMENT_RATE",
+  "POS_AVG_FUTURE_INSTALLMENTS",
+  "POS_HISTORY_MISSING"
+)
+
+# Create three stratified folds
+set.seed(6812)
+
+pos_folds <- rsample::vfold_cv(
+  pos_sample,
+  v = 3,
+  strata = TARGET
+)
+
+# Compare both models on identical folds
+pos_cv_results <- purrr::map_dfr(
+  seq_len(nrow(pos_folds)),
+  function(i) {
+
+    split <- pos_folds$splits[[i]]
+
+    existing_auc <- evaluate_logistic(
+      split,
+      pos_existing_predictors
+    )
+
+    pos_auc <- evaluate_logistic(
+      split,
+      pos_predictors
+    )
+
+    tibble::tibble(
+      Fold = i,
+      Existing_AUC = existing_auc,
+      POS_AUC = pos_auc,
+      Improvement = pos_auc - existing_auc
+    )
+  }
+)
+
+# Display fold results
+pos_cv_results
+
+# Calculate average ROC AUC
+pos_cv_summary <- pos_cv_results |>
+  dplyr::summarise(
+    Existing_Mean_AUC = mean(Existing_AUC),
+    POS_Mean_AUC = mean(POS_AUC),
+    Mean_Improvement = mean(Improvement)
+  )
+
+# Display summary
+pos_cv_summary
+```
+
+### Credit Card Balance Features
+
+This experiment investigates whether historical credit card usage and repayment behavior improves the model's ROC AUC.
+
+```{r}
+# Load credit card balance data
+credit_card <- readr::read_csv(
+  "Data/credit_card_balance.csv",
+  show_col_types = FALSE
+)
+
+# Check dimensions
+dim(credit_card)
+
+# Inspect column names
+names(credit_card)
+
+# Preview the data
+head(credit_card)
+```
+
+### Compare Models With and Without Credit Card Features
+
+This experiment tests whether credit card history improves ROC AUC beyond the existing application, Bureau, previous application, installment, and POS/CASH features. Both models use the same applicants and three stratified cross-validation folds.
+
+```{r}
+# Load credit card balance data
+credit_card <- readr::read_csv(
+  "Data/credit_card_balance.csv",
+  show_col_types = FALSE
+)
+
+# Aggregate credit card features
+credit_card_features <- aggregate_credit_card_data(credit_card)
+
+# Join credit card features to the existing sample
+credit_card_sample <- pos_sample |>
+  dplyr::left_join(
+    credit_card_features,
+    by = "SK_ID_CURR"
+  ) |>
+  dplyr::mutate(
+    CC_HISTORY_MISSING = as.integer(is.na(CC_RECORD_COUNT))
+  )
+
+# Verify that no applicants were duplicated
+stopifnot(nrow(credit_card_sample) == nrow(pos_sample))
+
+# Inspect the result
+dim(credit_card_sample)
+table(credit_card_sample$CC_HISTORY_MISSING)
+```
+
+```{r}
+# Credit card predictors
+credit_card_predictors <- c(
+  pos_predictors,
+  "CC_RECORD_COUNT",
+  "CC_AVG_BALANCE",
+  "CC_AVG_CREDIT_LIMIT",
+  "CC_MAX_DPD",
+  "CC_LATE_PAYMENT_RATE",
+  "CC_HISTORY_MISSING"
+)
+
+# Use the same three folds for both models
+set.seed(6812)
+
+credit_card_folds <- rsample::vfold_cv(
+  credit_card_sample,
+  v = 3,
+  strata = TARGET
+)
+
+# Evaluate models on identical folds
+credit_card_cv_results <- purrr::map_dfr(
+  seq_along(credit_card_folds$splits),
+  function(i) {
+
+    split <- credit_card_folds$splits[[i]]
+
+    existing_auc <- evaluate_logistic(
+      split,
+      pos_predictors
+    )
+
+    credit_auc <- evaluate_logistic(
+      split,
+      credit_card_predictors
+    )
+
+    tibble::tibble(
+      Fold = i,
+      Existing_AUC = existing_auc,
+      Credit_Card_AUC = credit_auc,
+      Improvement = credit_auc - existing_auc
+    )
+  }
+)
+
+# Display fold results
+credit_card_cv_results
+
+# Calculate average ROC AUC
+credit_card_cv_summary <- credit_card_cv_results |>
+  dplyr::summarise(
+    Existing_Mean_AUC = mean(Existing_AUC),
+    Credit_Card_Mean_AUC = mean(Credit_Card_AUC),
+    Mean_Improvement = mean(Improvement)
+  )
+
+credit_card_cv_summary
+```
+
+## Final Enhanced Model
+
+The enhanced model combines application information with Bureau credit history, previous applications, installment payments, POS/CASH balances, and credit card history.
+
+### Prepare Full Training Data
+
+```{r}
+# Combine all supplementary datasets with the full training data
+enhanced_train <- train_prepared |>
+  dplyr::left_join(bureau_features, by = "SK_ID_CURR") |>
+  dplyr::left_join(previous_features, by = "SK_ID_CURR") |>
+  dplyr::left_join(installment_features, by = "SK_ID_CURR") |>
+  dplyr::left_join(pos_features, by = "SK_ID_CURR") |>
+  dplyr::left_join(credit_card_features, by = "SK_ID_CURR") |>
+  dplyr::mutate(
+    BUREAU_HISTORY_MISSING = as.integer(is.na(BUREAU_LOAN_COUNT)),
+    PREV_HISTORY_MISSING = as.integer(is.na(PREV_APP_COUNT)),
+    INST_HISTORY_MISSING = as.integer(is.na(INST_PAYMENT_COUNT)),
+    POS_HISTORY_MISSING = as.integer(is.na(POS_RECORD_COUNT)),
+    CC_HISTORY_MISSING = as.integer(is.na(CC_RECORD_COUNT))
+  )
+
+# Verify that all training applicants are retained
+stopifnot(nrow(enhanced_train) == nrow(train_prepared))
+
+# Inspect the enhanced dataset
+dim(enhanced_train)
+
+# Check missing-history indicators
+enhanced_train |>
+  dplyr::summarise(
+    Bureau_Missing = sum(BUREAU_HISTORY_MISSING),
+    Previous_Missing = sum(PREV_HISTORY_MISSING),
+    Installment_Missing = sum(INST_HISTORY_MISSING),
+    POS_Missing = sum(POS_HISTORY_MISSING),
+    Credit_Card_Missing = sum(CC_HISTORY_MISSING)
+  )
+```
+
+### Train Enhanced Logistic Regression
+
+```{r}
+# Use all predictors from our credit card experiment
+enhanced_predictors <- unique(credit_card_predictors)
+
+# Select target and predictors
+enhanced_model_data <- enhanced_train |>
+  dplyr::select(TARGET, dplyr::all_of(enhanced_predictors)) |>
+  dplyr::mutate(TARGET = as.integer(TARGET))
+
+# Replace missing or infinite values using training medians
+enhanced_medians <- sapply(
+  enhanced_model_data[enhanced_predictors],
+  function(x) {
+    x[!is.finite(x)] <- NA_real_
+    median_value <- median(x, na.rm = TRUE)
+    if (!is.finite(median_value)) median_value <- 0
+    median_value
+  }
+)
+
+for (variable in enhanced_predictors) {
+  missing_values <- !is.finite(enhanced_model_data[[variable]])
+
+  enhanced_model_data[[variable]][missing_values] <-
+    enhanced_medians[[variable]]
+}
+
+# Train on the full dataset
+enhanced_model <- glm(
+  TARGET ~ .,
+  data = enhanced_model_data,
+  family = binomial()
+)
+
+# Verify training size
+nrow(enhanced_model_data)
+
+# Check model fit
+enhanced_model$converged
+```
+
+### Prepare Enhanced Kaggle Test Data
+
+```{r}
+# Join supplementary features to the Kaggle test data
+enhanced_test <- test_prepared |>
+  dplyr::left_join(bureau_features, by = "SK_ID_CURR") |>
+  dplyr::left_join(previous_features, by = "SK_ID_CURR") |>
+  dplyr::left_join(installment_features, by = "SK_ID_CURR") |>
+  dplyr::left_join(pos_features, by = "SK_ID_CURR") |>
+  dplyr::left_join(credit_card_features, by = "SK_ID_CURR") |>
+  dplyr::mutate(
+    BUREAU_HISTORY_MISSING = as.integer(is.na(BUREAU_LOAN_COUNT)),
+    PREV_HISTORY_MISSING = as.integer(is.na(PREV_APP_COUNT)),
+    INST_HISTORY_MISSING = as.integer(is.na(INST_PAYMENT_COUNT)),
+    POS_HISTORY_MISSING = as.integer(is.na(POS_RECORD_COUNT)),
+    CC_HISTORY_MISSING = as.integer(is.na(CC_RECORD_COUNT))
+  )
+
+# Confirm all test applicants are retained
+stopifnot(nrow(enhanced_test) == nrow(test_prepared))
+
+# Select the same predictors used during training
+enhanced_test_model <- enhanced_test |>
+  dplyr::select(dplyr::all_of(enhanced_predictors))
+
+# Impute missing values using TRAINING medians
+for (variable in enhanced_predictors) {
+  missing_values <- !is.finite(enhanced_test_model[[variable]])
+
+  enhanced_test_model[[variable]][missing_values] <-
+    enhanced_medians[[variable]]
+}
+
+# Verify dimensions and missing values
+dim(enhanced_test_model)
+sum(is.na(enhanced_test_model))
+```
+
+### Generate Enhanced Kaggle Submission
+
+```{r}
+# Predict default probabilities
+enhanced_probabilities <- predict(
+  enhanced_model,
+  newdata = enhanced_test_model,
+  type = "response"
+)
+
+# Create Kaggle submission
+enhanced_submission <- tibble::tibble(
+  SK_ID_CURR = enhanced_test$SK_ID_CURR,
+  TARGET = as.numeric(enhanced_probabilities)
+)
+
+# Verify submission
+stopifnot(
+  nrow(enhanced_submission) == 48744,
+  all(is.finite(enhanced_submission$TARGET)),
+  all(enhanced_submission$TARGET >= 0),
+  all(enhanced_submission$TARGET <= 1)
+)
+
+# Save submission
+readr::write_csv(
+  enhanced_submission,
+  "kaggle_submission_enhanced.csv"
+)
+
+# Preview predictions
+head(enhanced_submission)
+```
+
+## Cross-Validation Experiment Summary
+
+The following table summarizes how predictive performance changed as supplementary credit history datasets were added to the Logistic Regression model.
+
+```{r}
+tibble::tibble(
+  Model = c(
+    "Application + Bureau",
+    "+ Previous Applications",
+    "+ Installment Payments",
+    "+ POS/CASH Balance",
+    "+ Credit Card Balance"
+  ),
+  Mean_ROC_AUC = c(
+    bureau_cv_summary$Bureau_Mean_AUC,
+    previous_cv_summary$Combined_Mean_AUC,
+    installment_cv_summary$Installment_Mean_AUC,
+    pos_cv_summary$POS_Mean_AUC,
+    credit_card_cv_summary$Credit_Card_Mean_AUC
+  )
+)
+```
+
+## Kaggle Evaluation Results
+
+Two logistic regression models were submitted to the Home Credit Default Risk competition on Kaggle.
+
+| Model | Public ROC AUC | Private ROC AUC |
+|---|---:|---:|
+| Initial Logistic Regression | 0.62268 | 0.60727 |
+| Enhanced Logistic Regression | 0.69607 | 0.68375 |
+
+The enhanced model improved the public ROC AUC by 0.07339 and the private ROC AUC by 0.07648.
+
+The enhanced model incorporated information from five supplementary datasets: Bureau, Previous Applications, Installment Payments, POS/CASH Balance, and Credit Card Balance.
+
+These results suggest that applicants' historical borrowing and repayment behavior provides useful additional information for predicting payment difficulties.
+
+## Model Limitations
+
+Although the enhanced Logistic Regression model outperformed the initial model, its private Kaggle ROC AUC of 0.68375 indicates that there is still room for improvement. The model can distinguish between higher-risk and lower-risk applicants better than random guessing, but it cannot perfectly identify applicants who will experience payment difficulties.
+
+The dataset is also highly imbalanced, with approximately 8.1% of applicants experiencing payment difficulties. Although ROC AUC helps evaluate the model under class imbalance, additional metrics such as precision, recall, and the precision-recall curve would provide a more complete understanding of its performance.
+
+The supplementary feature experiments were evaluated using approximately 10,000 applicants and three-fold cross-validation to reduce computational requirements. Therefore, the results may not fully represent performance across the entire training population. More extensive validation would help assess the stability of the improvements.
+
+Another limitation is the use of Logistic Regression, which may not capture complex nonlinear relationships between financial variables. More advanced models, such as gradient boosting, could potentially improve predictive performance.
+
+Finally, because this model concerns lending decisions, predictive performance alone would not be sufficient for real-world deployment. Fairness, interpretability, probability calibration, and the consequences of incorrect predictions would also need to be evaluated.
+
+## Conclusion
+
+This project explored how predictive modeling can help Home Credit identify applicants who are more likely to experience payment difficulties. Logistic Regression, Decision Tree, and Random Forest models were compared using cross-validation and ROC AUC. Logistic Regression performed best among the initial models tested.
+
+The most significant improvement came from incorporating historical financial information. By adding features from Bureau, Previous Applications, Installment Payments, POS/CASH Balance, and Credit Card Balance datasets, the enhanced Logistic Regression model achieved a public Kaggle ROC AUC of 0.69607 and a private ROC AUC of 0.68375, compared with 0.62268 and 0.60727 for the initial model.
+
+These results suggest that an applicant's previous borrowing and repayment behavior provides valuable information beyond the initial loan application. From a business perspective, improved risk predictions could help lenders make more informed credit decisions, although additional validation would be necessary before using the model in practice.
+
+Future improvements could include testing gradient boosting models, developing additional features, evaluating precision and recall, and performing more extensive cross-validation. These steps could help improve predictive performance and assess the model's reliability.

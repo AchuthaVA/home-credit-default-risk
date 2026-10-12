@@ -173,3 +173,173 @@ validate_prepared_data <- function(train_data, test_data) {
     test_one_row_per_id = test_unique_id
   )
 }
+
+# Aggregate Bureau credit history -----------------------------------------
+
+aggregate_bureau_data <- function(bureau) {
+
+  bureau |>
+    group_by(SK_ID_CURR) |>
+    summarise(
+      BUREAU_LOAN_COUNT = n(),
+
+      BUREAU_ACTIVE_COUNT = sum(
+        CREDIT_ACTIVE == "Active",
+        na.rm = TRUE
+      ),
+
+      BUREAU_TOTAL_DEBT = sum(
+        AMT_CREDIT_SUM_DEBT,
+        na.rm = TRUE
+      ),
+
+      BUREAU_MAX_OVERDUE_DAYS = if (
+        all(is.na(CREDIT_DAY_OVERDUE))
+      ) NA_real_ else max(
+        CREDIT_DAY_OVERDUE,
+        na.rm = TRUE
+      ),
+
+      .groups = "drop"
+    )
+}
+
+# Aggregate previous loan applications ----------------------------
+
+aggregate_previous_data <- function(previous) {
+
+  previous |>
+    dplyr::group_by(SK_ID_CURR) |>
+    dplyr::summarise(
+      PREV_APP_COUNT = dplyr::n(),
+
+      PREV_APPROVED_COUNT = sum(
+        NAME_CONTRACT_STATUS == "Approved",
+        na.rm = TRUE
+      ),
+
+      PREV_REFUSED_COUNT = sum(
+        NAME_CONTRACT_STATUS == "Refused",
+        na.rm = TRUE
+      ),
+
+      PREV_AVG_CREDIT = {
+        approved_credit <- AMT_CREDIT[
+          !is.na(NAME_CONTRACT_STATUS) &
+          NAME_CONTRACT_STATUS == "Approved"
+        ]
+
+        if (all(is.na(approved_credit)) ||
+            length(approved_credit) == 0) {
+          NA_real_
+        } else {
+          mean(approved_credit, na.rm = TRUE)
+        }
+      },
+
+      .groups = "drop"
+    )
+}
+
+# Aggregate installment payment history ------------------------
+
+aggregate_installments_data <- function(installments) {
+
+  installments |>
+    dplyr::mutate(
+      PAYMENT_DELAY = DAYS_ENTRY_PAYMENT - DAYS_INSTALMENT,
+
+      PAYMENT_SHORTFALL = pmax(
+        AMT_INSTALMENT - AMT_PAYMENT,
+        0
+      )
+    ) |>
+    dplyr::group_by(SK_ID_CURR) |>
+    dplyr::summarise(
+      INST_PAYMENT_COUNT = dplyr::n(),
+
+      INST_LATE_PAYMENT_RATE = mean(
+        PAYMENT_DELAY > 0,
+        na.rm = TRUE
+      ),
+
+      INST_AVG_PAYMENT_DELAY = mean(
+        pmax(PAYMENT_DELAY, 0),
+        na.rm = TRUE
+      ),
+
+      INST_TOTAL_SHORTFALL = sum(
+        PAYMENT_SHORTFALL,
+        na.rm = TRUE
+      ),
+
+      .groups = "drop"
+    )
+}
+
+# Aggregate POS/CASH balance history -------------------------
+
+aggregate_pos_data <- function(pos) {
+
+  pos |>
+    dplyr::group_by(SK_ID_CURR) |>
+    dplyr::summarise(
+      POS_RECORD_COUNT = dplyr::n(),
+
+      POS_AVG_DPD = mean(
+        SK_DPD,
+        na.rm = TRUE
+      ),
+
+      POS_MAX_DPD = max(
+        SK_DPD,
+        na.rm = TRUE
+      ),
+
+      POS_LATE_PAYMENT_RATE = mean(
+        SK_DPD > 0,
+        na.rm = TRUE
+      ),
+
+      POS_AVG_FUTURE_INSTALLMENTS = mean(
+        CNT_INSTALMENT_FUTURE,
+        na.rm = TRUE
+      ),
+
+      .groups = "drop"
+    )
+}
+
+# Aggregate credit card balance history --------------------------
+
+aggregate_credit_card_data <- function(credit_card) {
+
+  credit_card |>
+    dplyr::group_by(SK_ID_CURR) |>
+    dplyr::summarise(
+
+      CC_RECORD_COUNT = dplyr::n(),
+
+      CC_AVG_BALANCE = mean(
+        AMT_BALANCE,
+        na.rm = TRUE
+      ),
+
+      CC_AVG_CREDIT_LIMIT = mean(
+        AMT_CREDIT_LIMIT_ACTUAL,
+        na.rm = TRUE
+      ),
+
+      CC_MAX_DPD = max(
+        SK_DPD,
+        na.rm = TRUE
+      ),
+
+      CC_LATE_PAYMENT_RATE = mean(
+        SK_DPD > 0,
+        na.rm = TRUE
+      ),
+
+      .groups = "drop"
+    )
+}

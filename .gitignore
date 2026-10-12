@@ -1,2 +1,9 @@
 Data/
 .DS_Store
+
+# Kaggle submission and model artifacts
+kaggle_submission.csv
+kaggle_submission_enhanced.csv
+*.rds
+*.RData
+*.Rhistory
