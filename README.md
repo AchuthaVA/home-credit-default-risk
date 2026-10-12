@@ -23,7 +23,9 @@ The script applies the following cleaning and feature-engineering steps:
 - Creates `COMMONAREA_AVG_MISSING` to preserve the missingness information identified in the EDA. The EDA found a payment-difficulty rate of 8.57% when `COMMONAREA_AVG` was missing compared with 6.91% when it was not missing.
 - Imputes missing `COMMONAREA_AVG` values using the median calculated from the training data.
 
-Supplementary tables were not processed or joined because they were optional for the EDA and were not included in the analysis used to determine the current preparation decisions. Interaction terms and binned variables were also not added because the EDA did not identify a specific interaction or binning decision that needed to be carried forward.
+During the initial EDA and application-level data preparation, supplementary datasets were not incorporated. However, the predictive modeling phase expanded the analysis by aggregating and joining five additional datasets: Bureau, Previous Applications, Installment Payments, POS/CASH Balance, and Credit Card Balance. These datasets provided historical credit and repayment features that improved the model's predictive performance.
+
+Interaction terms and binned variables were not included in the initial application-level preparation because the EDA did not identify a specific need for them.
 
 ### Train/Test Consistency
 
@@ -78,3 +80,61 @@ The preparation workflow creates two prepared data frames in R:
 The prepared datasets include the original application variables along with the engineered variables `AGE_YEARS`, `EMPLOYMENT_YEARS`, `ANNUITY_INCOME_RATIO`, `CREDIT_GOODS_RATIO`, and `COMMONAREA_AVG_MISSING`.
 
 The script does not write prepared data files to the repository. The prepared data frames are created in R for use in later modeling steps.
+
+## Predictive Modeling
+
+The modeling phase evaluated multiple classification algorithms to predict whether loan applicants would experience payment difficulties.
+
+### Models Evaluated
+
+Three classification algorithms were compared using five-fold stratified cross-validation:
+
+| Model | Mean ROC AUC |
+|---|---:|
+| Logistic Regression | 0.602 |
+| Random Forest | 0.567 |
+| Decision Tree | 0.505 |
+
+Logistic Regression achieved the strongest initial performance and was selected for further development. Additional experiments with class weighting and Random Forest hyperparameter tuning did not improve upon its performance.
+
+### Feature Engineering and Model Enhancement
+
+The initial Logistic Regression model used six application-level predictors. The enhanced model incorporated historical financial information from five supplementary datasets:
+
+- **Bureau:** Previous credit accounts, outstanding debt, and overdue payments.
+- **Previous Applications:** Historical loan applications, approvals, and refusals.
+- **Installment Payments:** Payment delays, late payment frequency, and payment shortfalls.
+- **POS/CASH Balance:** Previous loan balances, overdue payments, and installment information.
+- **Credit Card Balance:** Credit card balances, credit limits, and repayment behavior.
+
+The enhanced model used 33 predictors and was trained on the full dataset of 307,511 applicants.
+
+### Kaggle Evaluation Results
+
+Both the initial and enhanced Logistic Regression models were evaluated using the Home Credit Default Risk Kaggle competition.
+
+| Model | Public ROC AUC | Private ROC AUC |
+|---|---:|---:|
+| Initial Logistic Regression | 0.62268 | 0.60727 |
+| Enhanced Logistic Regression | 0.69607 | 0.68375 |
+| Improvement | +0.07339 | +0.07648 |
+
+The results demonstrate that incorporating historical credit and repayment information improved the model's ability to distinguish between higher-risk and lower-risk applicants.
+
+### Business Implications
+
+Improved credit risk prediction could help lenders identify applicants who are more likely to experience payment difficulties and support more informed lending decisions.
+
+However, the enhanced model is not ready for real-world deployment. Further evaluation of fairness, interpretability, probability calibration, and classification errors would be necessary.
+
+### Future Improvements
+
+Future work could explore gradient boosting models, additional feature engineering, precision-recall analysis, and more extensive cross-validation.
+
+### Modeling Files
+
+- `modeling.qmd` — Quarto source notebook containing the modeling workflow, experiments, and results.
+- `modeling.html` — Rendered modeling report.
+- `data_preparation.R` — Reusable application preparation and supplementary feature aggregation functions.
+
+The raw datasets and Kaggle submission files are excluded from the repository using `.gitignore`.
