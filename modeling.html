@@ -2245,6 +2245,7 @@ vertical-align: -.125em;
   <ul class="collapse">
   <li><a href="#prepare-full-training-data" id="toc-prepare-full-training-data" class="nav-link" data-scroll-target="#prepare-full-training-data">Prepare Full Training Data</a></li>
   <li><a href="#train-enhanced-logistic-regression" id="toc-train-enhanced-logistic-regression" class="nav-link" data-scroll-target="#train-enhanced-logistic-regression">Train Enhanced Logistic Regression</a></li>
+  <li><a href="#external-credit-score-experiment" id="toc-external-credit-score-experiment" class="nav-link" data-scroll-target="#external-credit-score-experiment">External Credit Score Experiment</a></li>
   <li><a href="#prepare-enhanced-kaggle-test-data" id="toc-prepare-enhanced-kaggle-test-data" class="nav-link" data-scroll-target="#prepare-enhanced-kaggle-test-data">Prepare Enhanced Kaggle Test Data</a></li>
   <li><a href="#generate-enhanced-kaggle-submission" id="toc-generate-enhanced-kaggle-submission" class="nav-link" data-scroll-target="#generate-enhanced-kaggle-submission">Generate Enhanced Kaggle Submission</a></li>
   </ul></li>
@@ -3105,42 +3106,44 @@ vertical-align: -.125em;
 <span id="cb33-61"><a href="#cb33-61" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb33-62"><a href="#cb33-62" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Calculate ROC AUC</span></span>
 <span id="cb33-63"><a href="#cb33-63" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.numeric</span>(</span>
-<span id="cb33-64"><a href="#cb33-64" aria-hidden="true" tabindex="-1"></a>    pROC<span class="sc">::</span><span class="fu">auc</span>(</span>
-<span id="cb33-65"><a href="#cb33-65" aria-hidden="true" tabindex="-1"></a>      <span class="at">response =</span> validation<span class="sc">$</span>TARGET,</span>
-<span id="cb33-66"><a href="#cb33-66" aria-hidden="true" tabindex="-1"></a>      <span class="at">predictor =</span> probabilities,</span>
-<span id="cb33-67"><a href="#cb33-67" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>),</span>
-<span id="cb33-68"><a href="#cb33-68" aria-hidden="true" tabindex="-1"></a>      <span class="at">direction =</span> <span class="st">&quot;&lt;&quot;</span>,</span>
-<span id="cb33-69"><a href="#cb33-69" aria-hidden="true" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
-<span id="cb33-70"><a href="#cb33-70" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb33-71"><a href="#cb33-71" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb33-72"><a href="#cb33-72" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb33-73"><a href="#cb33-73" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-74"><a href="#cb33-74" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate both models on identical folds</span></span>
-<span id="cb33-75"><a href="#cb33-75" aria-hidden="true" tabindex="-1"></a>bureau_cv_results <span class="ot">&lt;-</span> purrr<span class="sc">::</span><span class="fu">map_dfr</span>(</span>
-<span id="cb33-76"><a href="#cb33-76" aria-hidden="true" tabindex="-1"></a>  <span class="fu">seq_len</span>(<span class="fu">nrow</span>(bureau_folds)),</span>
-<span id="cb33-77"><a href="#cb33-77" aria-hidden="true" tabindex="-1"></a>  <span class="cf">function</span>(i) {</span>
-<span id="cb33-78"><a href="#cb33-78" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-79"><a href="#cb33-79" aria-hidden="true" tabindex="-1"></a>    split <span class="ot">&lt;-</span> bureau_folds<span class="sc">$</span>splits[[i]]</span>
+<span id="cb33-64"><a href="#cb33-64" aria-hidden="true" tabindex="-1"></a>  pROC<span class="sc">::</span><span class="fu">auc</span>(</span>
+<span id="cb33-65"><a href="#cb33-65" aria-hidden="true" tabindex="-1"></a>    pROC<span class="sc">::</span><span class="fu">roc</span>(</span>
+<span id="cb33-66"><a href="#cb33-66" aria-hidden="true" tabindex="-1"></a>      <span class="at">response =</span> validation<span class="sc">$</span>TARGET,</span>
+<span id="cb33-67"><a href="#cb33-67" aria-hidden="true" tabindex="-1"></a>      <span class="at">predictor =</span> probabilities,</span>
+<span id="cb33-68"><a href="#cb33-68" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>),</span>
+<span id="cb33-69"><a href="#cb33-69" aria-hidden="true" tabindex="-1"></a>      <span class="at">direction =</span> <span class="st">&quot;&lt;&quot;</span>,</span>
+<span id="cb33-70"><a href="#cb33-70" aria-hidden="true" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb33-71"><a href="#cb33-71" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb33-72"><a href="#cb33-72" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb33-73"><a href="#cb33-73" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb33-74"><a href="#cb33-74" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb33-75"><a href="#cb33-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-76"><a href="#cb33-76" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate both models on identical folds</span></span>
+<span id="cb33-77"><a href="#cb33-77" aria-hidden="true" tabindex="-1"></a>bureau_cv_results <span class="ot">&lt;-</span> purrr<span class="sc">::</span><span class="fu">map_dfr</span>(</span>
+<span id="cb33-78"><a href="#cb33-78" aria-hidden="true" tabindex="-1"></a>  <span class="fu">seq_len</span>(<span class="fu">nrow</span>(bureau_folds)),</span>
+<span id="cb33-79"><a href="#cb33-79" aria-hidden="true" tabindex="-1"></a>  <span class="cf">function</span>(i) {</span>
 <span id="cb33-80"><a href="#cb33-80" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-81"><a href="#cb33-81" aria-hidden="true" tabindex="-1"></a>    tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
-<span id="cb33-82"><a href="#cb33-82" aria-hidden="true" tabindex="-1"></a>      <span class="at">Fold =</span> i,</span>
-<span id="cb33-83"><a href="#cb33-83" aria-hidden="true" tabindex="-1"></a>      <span class="at">Baseline_AUC =</span> <span class="fu">evaluate_logistic</span>(</span>
-<span id="cb33-84"><a href="#cb33-84" aria-hidden="true" tabindex="-1"></a>        split, baseline_vars</span>
-<span id="cb33-85"><a href="#cb33-85" aria-hidden="true" tabindex="-1"></a>      ),</span>
-<span id="cb33-86"><a href="#cb33-86" aria-hidden="true" tabindex="-1"></a>      <span class="at">Bureau_AUC =</span> <span class="fu">evaluate_logistic</span>(</span>
-<span id="cb33-87"><a href="#cb33-87" aria-hidden="true" tabindex="-1"></a>        split, enhanced_vars</span>
-<span id="cb33-88"><a href="#cb33-88" aria-hidden="true" tabindex="-1"></a>      )</span>
-<span id="cb33-89"><a href="#cb33-89" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb33-90"><a href="#cb33-90" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb33-91"><a href="#cb33-91" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb33-92"><a href="#cb33-92" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-93"><a href="#cb33-93" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare results</span></span>
-<span id="cb33-94"><a href="#cb33-94" aria-hidden="true" tabindex="-1"></a>bureau_cv_results <span class="ot">&lt;-</span> bureau_cv_results <span class="sc">|&gt;</span></span>
-<span id="cb33-95"><a href="#cb33-95" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
-<span id="cb33-96"><a href="#cb33-96" aria-hidden="true" tabindex="-1"></a>    <span class="at">Improvement =</span> Bureau_AUC <span class="sc">-</span> Baseline_AUC</span>
-<span id="cb33-97"><a href="#cb33-97" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb33-98"><a href="#cb33-98" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-99"><a href="#cb33-99" aria-hidden="true" tabindex="-1"></a>bureau_cv_results</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb33-81"><a href="#cb33-81" aria-hidden="true" tabindex="-1"></a>    split <span class="ot">&lt;-</span> bureau_folds<span class="sc">$</span>splits[[i]]</span>
+<span id="cb33-82"><a href="#cb33-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-83"><a href="#cb33-83" aria-hidden="true" tabindex="-1"></a>    tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
+<span id="cb33-84"><a href="#cb33-84" aria-hidden="true" tabindex="-1"></a>      <span class="at">Fold =</span> i,</span>
+<span id="cb33-85"><a href="#cb33-85" aria-hidden="true" tabindex="-1"></a>      <span class="at">Baseline_AUC =</span> <span class="fu">evaluate_logistic</span>(</span>
+<span id="cb33-86"><a href="#cb33-86" aria-hidden="true" tabindex="-1"></a>        split, baseline_vars</span>
+<span id="cb33-87"><a href="#cb33-87" aria-hidden="true" tabindex="-1"></a>      ),</span>
+<span id="cb33-88"><a href="#cb33-88" aria-hidden="true" tabindex="-1"></a>      <span class="at">Bureau_AUC =</span> <span class="fu">evaluate_logistic</span>(</span>
+<span id="cb33-89"><a href="#cb33-89" aria-hidden="true" tabindex="-1"></a>        split, enhanced_vars</span>
+<span id="cb33-90"><a href="#cb33-90" aria-hidden="true" tabindex="-1"></a>      )</span>
+<span id="cb33-91"><a href="#cb33-91" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb33-92"><a href="#cb33-92" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb33-93"><a href="#cb33-93" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb33-94"><a href="#cb33-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-95"><a href="#cb33-95" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare results</span></span>
+<span id="cb33-96"><a href="#cb33-96" aria-hidden="true" tabindex="-1"></a>bureau_cv_results <span class="ot">&lt;-</span> bureau_cv_results <span class="sc">|&gt;</span></span>
+<span id="cb33-97"><a href="#cb33-97" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
+<span id="cb33-98"><a href="#cb33-98" aria-hidden="true" tabindex="-1"></a>    <span class="at">Improvement =</span> Bureau_AUC <span class="sc">-</span> Baseline_AUC</span>
+<span id="cb33-99"><a href="#cb33-99" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb33-100"><a href="#cb33-100" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-101"><a href="#cb33-101" aria-hidden="true" tabindex="-1"></a>bureau_cv_results</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code># A tibble: 3 × 4
    Fold Baseline_AUC Bureau_AUC Improvement
@@ -3735,7 +3738,7 @@ vertical-align: -.125em;
 </section>
 <section id="final-enhanced-model" class="level2">
 <h2 class="anchored" data-anchor-id="final-enhanced-model">Final Enhanced Model</h2>
-<p>The enhanced model combines application information with Bureau credit history, previous applications, installment payments, POS/CASH balances, and credit card history.</p>
+<p>The final enhanced Logistic Regression model combines application information with Bureau credit history, previous applications, installment payments, POS/CASH balances, and credit card history. After re-evaluating predictor selection, three additional variables EXT_SOURCE_1, EXT_SOURCE_2, and EXT_SOURCE_3 were incorporated to improve predictive performance, bringing the total number of predictors to 36.</p>
 <section id="prepare-full-training-data" class="level3">
 <h3 class="anchored" data-anchor-id="prepare-full-training-data">Prepare Full Training Data</h3>
 <div class="cell">
@@ -3784,40 +3787,45 @@ vertical-align: -.125em;
 <h3 class="anchored" data-anchor-id="train-enhanced-logistic-regression">Train Enhanced Logistic Regression</h3>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb77"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb77-1"><a href="#cb77-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Use all predictors from our credit card experiment</span></span>
-<span id="cb77-2"><a href="#cb77-2" aria-hidden="true" tabindex="-1"></a>enhanced_predictors <span class="ot">&lt;-</span> <span class="fu">unique</span>(credit_card_predictors)</span>
-<span id="cb77-3"><a href="#cb77-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb77-4"><a href="#cb77-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Select target and predictors</span></span>
-<span id="cb77-5"><a href="#cb77-5" aria-hidden="true" tabindex="-1"></a>enhanced_model_data <span class="ot">&lt;-</span> enhanced_train <span class="sc">|&gt;</span></span>
-<span id="cb77-6"><a href="#cb77-6" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(TARGET, dplyr<span class="sc">::</span><span class="fu">all_of</span>(enhanced_predictors)) <span class="sc">|&gt;</span></span>
-<span id="cb77-7"><a href="#cb77-7" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(<span class="at">TARGET =</span> <span class="fu">as.integer</span>(TARGET))</span>
+<span id="cb77-2"><a href="#cb77-2" aria-hidden="true" tabindex="-1"></a>enhanced_predictors <span class="ot">&lt;-</span> <span class="fu">unique</span>(<span class="fu">c</span>(</span>
+<span id="cb77-3"><a href="#cb77-3" aria-hidden="true" tabindex="-1"></a>  credit_card_predictors,</span>
+<span id="cb77-4"><a href="#cb77-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;EXT_SOURCE_1&quot;</span>,</span>
+<span id="cb77-5"><a href="#cb77-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;EXT_SOURCE_2&quot;</span>,</span>
+<span id="cb77-6"><a href="#cb77-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;EXT_SOURCE_3&quot;</span></span>
+<span id="cb77-7"><a href="#cb77-7" aria-hidden="true" tabindex="-1"></a>))</span>
 <span id="cb77-8"><a href="#cb77-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb77-9"><a href="#cb77-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Replace missing or infinite values using training medians</span></span>
-<span id="cb77-10"><a href="#cb77-10" aria-hidden="true" tabindex="-1"></a>enhanced_medians <span class="ot">&lt;-</span> <span class="fu">sapply</span>(</span>
-<span id="cb77-11"><a href="#cb77-11" aria-hidden="true" tabindex="-1"></a>  enhanced_model_data[enhanced_predictors],</span>
-<span id="cb77-12"><a href="#cb77-12" aria-hidden="true" tabindex="-1"></a>  <span class="cf">function</span>(x) {</span>
-<span id="cb77-13"><a href="#cb77-13" aria-hidden="true" tabindex="-1"></a>    x[<span class="sc">!</span><span class="fu">is.finite</span>(x)] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span>
-<span id="cb77-14"><a href="#cb77-14" aria-hidden="true" tabindex="-1"></a>    median_value <span class="ot">&lt;-</span> <span class="fu">median</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb77-15"><a href="#cb77-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.finite</span>(median_value)) median_value <span class="ot">&lt;-</span> <span class="dv">0</span></span>
-<span id="cb77-16"><a href="#cb77-16" aria-hidden="true" tabindex="-1"></a>    median_value</span>
-<span id="cb77-17"><a href="#cb77-17" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb77-18"><a href="#cb77-18" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb77-19"><a href="#cb77-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb77-20"><a href="#cb77-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (variable <span class="cf">in</span> enhanced_predictors) {</span>
-<span id="cb77-21"><a href="#cb77-21" aria-hidden="true" tabindex="-1"></a>  missing_values <span class="ot">&lt;-</span> <span class="sc">!</span><span class="fu">is.finite</span>(enhanced_model_data[[variable]])</span>
-<span id="cb77-22"><a href="#cb77-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb77-23"><a href="#cb77-23" aria-hidden="true" tabindex="-1"></a>  enhanced_model_data[[variable]][missing_values] <span class="ot">&lt;-</span></span>
-<span id="cb77-24"><a href="#cb77-24" aria-hidden="true" tabindex="-1"></a>    enhanced_medians[[variable]]</span>
-<span id="cb77-25"><a href="#cb77-25" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb77-26"><a href="#cb77-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb77-27"><a href="#cb77-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Train on the full dataset</span></span>
-<span id="cb77-28"><a href="#cb77-28" aria-hidden="true" tabindex="-1"></a>enhanced_model <span class="ot">&lt;-</span> <span class="fu">glm</span>(</span>
-<span id="cb77-29"><a href="#cb77-29" aria-hidden="true" tabindex="-1"></a>  TARGET <span class="sc">~</span> .,</span>
-<span id="cb77-30"><a href="#cb77-30" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> enhanced_model_data,</span>
-<span id="cb77-31"><a href="#cb77-31" aria-hidden="true" tabindex="-1"></a>  <span class="at">family =</span> <span class="fu">binomial</span>()</span>
-<span id="cb77-32"><a href="#cb77-32" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb77-33"><a href="#cb77-33" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb77-34"><a href="#cb77-34" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify training size</span></span>
-<span id="cb77-35"><a href="#cb77-35" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(enhanced_model_data)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb77-9"><a href="#cb77-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Select target and predictors</span></span>
+<span id="cb77-10"><a href="#cb77-10" aria-hidden="true" tabindex="-1"></a>enhanced_model_data <span class="ot">&lt;-</span> enhanced_train <span class="sc">|&gt;</span></span>
+<span id="cb77-11"><a href="#cb77-11" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(TARGET, dplyr<span class="sc">::</span><span class="fu">all_of</span>(enhanced_predictors)) <span class="sc">|&gt;</span></span>
+<span id="cb77-12"><a href="#cb77-12" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(<span class="at">TARGET =</span> <span class="fu">as.integer</span>(TARGET))</span>
+<span id="cb77-13"><a href="#cb77-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb77-14"><a href="#cb77-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Replace missing or infinite values using training medians</span></span>
+<span id="cb77-15"><a href="#cb77-15" aria-hidden="true" tabindex="-1"></a>enhanced_medians <span class="ot">&lt;-</span> <span class="fu">sapply</span>(</span>
+<span id="cb77-16"><a href="#cb77-16" aria-hidden="true" tabindex="-1"></a>  enhanced_model_data[enhanced_predictors],</span>
+<span id="cb77-17"><a href="#cb77-17" aria-hidden="true" tabindex="-1"></a>  <span class="cf">function</span>(x) {</span>
+<span id="cb77-18"><a href="#cb77-18" aria-hidden="true" tabindex="-1"></a>    x[<span class="sc">!</span><span class="fu">is.finite</span>(x)] <span class="ot">&lt;-</span> <span class="cn">NA_real_</span></span>
+<span id="cb77-19"><a href="#cb77-19" aria-hidden="true" tabindex="-1"></a>    median_value <span class="ot">&lt;-</span> <span class="fu">median</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb77-20"><a href="#cb77-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.finite</span>(median_value)) median_value <span class="ot">&lt;-</span> <span class="dv">0</span></span>
+<span id="cb77-21"><a href="#cb77-21" aria-hidden="true" tabindex="-1"></a>    median_value</span>
+<span id="cb77-22"><a href="#cb77-22" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb77-23"><a href="#cb77-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb77-24"><a href="#cb77-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb77-25"><a href="#cb77-25" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (variable <span class="cf">in</span> enhanced_predictors) {</span>
+<span id="cb77-26"><a href="#cb77-26" aria-hidden="true" tabindex="-1"></a>  missing_values <span class="ot">&lt;-</span> <span class="sc">!</span><span class="fu">is.finite</span>(enhanced_model_data[[variable]])</span>
+<span id="cb77-27"><a href="#cb77-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb77-28"><a href="#cb77-28" aria-hidden="true" tabindex="-1"></a>  enhanced_model_data[[variable]][missing_values] <span class="ot">&lt;-</span></span>
+<span id="cb77-29"><a href="#cb77-29" aria-hidden="true" tabindex="-1"></a>    enhanced_medians[[variable]]</span>
+<span id="cb77-30"><a href="#cb77-30" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb77-31"><a href="#cb77-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb77-32"><a href="#cb77-32" aria-hidden="true" tabindex="-1"></a><span class="co"># Train on the full dataset</span></span>
+<span id="cb77-33"><a href="#cb77-33" aria-hidden="true" tabindex="-1"></a>enhanced_model <span class="ot">&lt;-</span> <span class="fu">glm</span>(</span>
+<span id="cb77-34"><a href="#cb77-34" aria-hidden="true" tabindex="-1"></a>  TARGET <span class="sc">~</span> .,</span>
+<span id="cb77-35"><a href="#cb77-35" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> enhanced_model_data,</span>
+<span id="cb77-36"><a href="#cb77-36" aria-hidden="true" tabindex="-1"></a>  <span class="at">family =</span> <span class="fu">binomial</span>()</span>
+<span id="cb77-37"><a href="#cb77-37" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb77-38"><a href="#cb77-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb77-39"><a href="#cb77-39" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify training size</span></span>
+<span id="cb77-40"><a href="#cb77-40" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(enhanced_model_data)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 307511</code></pre>
 </div>
@@ -3826,94 +3834,241 @@ vertical-align: -.125em;
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] TRUE</code></pre>
 </div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb81"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a><span class="fu">coef</span>(enhanced_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                (Intercept)                   AGE_YEARS 
+              -1.288900e+00               -6.234575e-03 
+           AMT_INCOME_TOTAL                  AMT_CREDIT 
+               4.570989e-08               -2.116979e-07 
+                AMT_ANNUITY        ANNUITY_INCOME_RATIO 
+               7.277763e-06                9.933953e-01 
+         CREDIT_GOODS_RATIO           BUREAU_LOAN_COUNT 
+               1.413691e+00               -3.525023e-02 
+        BUREAU_ACTIVE_COUNT           BUREAU_TOTAL_DEBT 
+               9.269642e-02               -3.048478e-09 
+    BUREAU_MAX_OVERDUE_DAYS      BUREAU_HISTORY_MISSING 
+              -1.765709e-05                3.589388e-01 
+             PREV_APP_COUNT         PREV_APPROVED_COUNT 
+               4.724494e-03               -1.419294e-02 
+         PREV_REFUSED_COUNT             PREV_AVG_CREDIT 
+               5.850206e-02               -7.777372e-07 
+       PREV_HISTORY_MISSING          INST_PAYMENT_COUNT 
+              -6.764687e-02               -1.684655e-03 
+     INST_LATE_PAYMENT_RATE      INST_AVG_PAYMENT_DELAY 
+               1.440233e+00               -1.001495e-03 
+       INST_TOTAL_SHORTFALL        INST_HISTORY_MISSING 
+               3.864853e-07               -8.926741e-02 
+           POS_RECORD_COUNT                 POS_AVG_DPD 
+              -6.026518e-03                3.776110e-04 
+                POS_MAX_DPD       POS_LATE_PAYMENT_RATE 
+               1.268879e-04                3.041874e-01 
+POS_AVG_FUTURE_INSTALLMENTS         POS_HISTORY_MISSING 
+               3.547896e-02                1.626477e-01 
+            CC_RECORD_COUNT              CC_AVG_BALANCE 
+              -2.796321e-04                2.782838e-06 
+        CC_AVG_CREDIT_LIMIT                  CC_MAX_DPD 
+              -8.637499e-07                7.518428e-05 
+       CC_LATE_PAYMENT_RATE          CC_HISTORY_MISSING 
+              -1.429554e-01               -6.604069e-02 
+               EXT_SOURCE_1                EXT_SOURCE_2 
+              -1.469194e+00               -2.252722e+00 
+               EXT_SOURCE_3 
+              -2.357887e+00 </code></pre>
 </div>
+</div>
+</section>
+<section id="external-credit-score-experiment" class="level3">
+<h3 class="anchored" data-anchor-id="external-credit-score-experiment">External Credit Score Experiment</h3>
+<p>The previous enhanced Logistic Regression model used 33 predictors from the application and supplementary credit-history datasets.</p>
+<p>To improve predictive performance, three additional variables were introduced: EXT_SOURCE_1, EXT_SOURCE_2, and EXT_SOURCE_3.</p>
+<p>Both models were evaluated using five-fold stratified cross-validation on the full training dataset of 307,511 applicants. Missing predictor values were imputed using medians calculated from each training fold.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb83"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create five stratified folds</span></span>
+<span id="cb83-2"><a href="#cb83-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb83-3"><a href="#cb83-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb83-4"><a href="#cb83-4" aria-hidden="true" tabindex="-1"></a>enhanced_folds <span class="ot">&lt;-</span> rsample<span class="sc">::</span><span class="fu">vfold_cv</span>(</span>
+<span id="cb83-5"><a href="#cb83-5" aria-hidden="true" tabindex="-1"></a>  enhanced_train,</span>
+<span id="cb83-6"><a href="#cb83-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">v =</span> <span class="dv">5</span>,</span>
+<span id="cb83-7"><a href="#cb83-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">strata =</span> TARGET</span>
+<span id="cb83-8"><a href="#cb83-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb83-9"><a href="#cb83-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb83-10"><a href="#cb83-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate original 33-predictor model</span></span>
+<span id="cb83-11"><a href="#cb83-11" aria-hidden="true" tabindex="-1"></a>auc_33 <span class="ot">&lt;-</span> <span class="fu">sapply</span>(</span>
+<span id="cb83-12"><a href="#cb83-12" aria-hidden="true" tabindex="-1"></a>  enhanced_folds<span class="sc">$</span>splits,</span>
+<span id="cb83-13"><a href="#cb83-13" aria-hidden="true" tabindex="-1"></a>  evaluate_logistic,</span>
+<span id="cb83-14"><a href="#cb83-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">predictors =</span> credit_card_predictors</span>
+<span id="cb83-15"><a href="#cb83-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb83-16"><a href="#cb83-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb83-17"><a href="#cb83-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate updated 36-predictor model</span></span>
+<span id="cb83-18"><a href="#cb83-18" aria-hidden="true" tabindex="-1"></a>auc_36 <span class="ot">&lt;-</span> <span class="fu">sapply</span>(</span>
+<span id="cb83-19"><a href="#cb83-19" aria-hidden="true" tabindex="-1"></a>  enhanced_folds<span class="sc">$</span>splits,</span>
+<span id="cb83-20"><a href="#cb83-20" aria-hidden="true" tabindex="-1"></a>  evaluate_logistic,</span>
+<span id="cb83-21"><a href="#cb83-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">predictors =</span> enhanced_predictors</span>
+<span id="cb83-22"><a href="#cb83-22" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb84"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare the original and updated models</span></span>
+<span id="cb84-2"><a href="#cb84-2" aria-hidden="true" tabindex="-1"></a>validation_comparison <span class="ot">&lt;-</span> tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
+<span id="cb84-3"><a href="#cb84-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">Fold =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>,</span>
+<span id="cb84-4"><a href="#cb84-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">Original_33_AUC =</span> auc_33,</span>
+<span id="cb84-5"><a href="#cb84-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">Updated_36_AUC =</span> auc_36,</span>
+<span id="cb84-6"><a href="#cb84-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">Improvement =</span> auc_36 <span class="sc">-</span> auc_33</span>
+<span id="cb84-7"><a href="#cb84-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb84-8"><a href="#cb84-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-9"><a href="#cb84-9" aria-hidden="true" tabindex="-1"></a>validation_comparison</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 5 × 4
+   Fold Original_33_AUC Updated_36_AUC Improvement
+  &lt;int&gt;           &lt;dbl&gt;          &lt;dbl&gt;       &lt;dbl&gt;
+1     1           0.693          0.753      0.0608
+2     2           0.683          0.744      0.0609
+3     3           0.683          0.742      0.0591
+4     4           0.690          0.751      0.0611
+5     5           0.684          0.750      0.0660</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb86"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Summarize results</span></span>
+<span id="cb86-2"><a href="#cb86-2" aria-hidden="true" tabindex="-1"></a>validation_summary <span class="ot">&lt;-</span> tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
+<span id="cb86-3"><a href="#cb86-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">Model =</span> <span class="fu">c</span>(<span class="st">&quot;Original 33 Predictors&quot;</span>, <span class="st">&quot;Updated 36 Predictors&quot;</span>),</span>
+<span id="cb86-4"><a href="#cb86-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">Mean_AUC =</span> <span class="fu">c</span>(<span class="fu">mean</span>(auc_33), <span class="fu">mean</span>(auc_36)),</span>
+<span id="cb86-5"><a href="#cb86-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">SD_AUC =</span> <span class="fu">c</span>(<span class="fu">sd</span>(auc_33), <span class="fu">sd</span>(auc_36))</span>
+<span id="cb86-6"><a href="#cb86-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb86-7"><a href="#cb86-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb86-8"><a href="#cb86-8" aria-hidden="true" tabindex="-1"></a>validation_summary</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 2 × 3
+  Model                  Mean_AUC  SD_AUC
+  &lt;chr&gt;                     &lt;dbl&gt;   &lt;dbl&gt;
+1 Original 33 Predictors    0.687 0.00454
+2 Updated 36 Predictors     0.748 0.00485</code></pre>
+</div>
+</div>
+<p>The original 33-predictor model achieved a mean ROC AUC of 0.6866, while the updated 36-predictor model achieved 0.7481.</p>
+<p>The average improvement was 0.0616 AUC points. Performance improved in all five validation folds, indicating that the external credit scores contribute meaningful predictive information.</p>
 </section>
 <section id="prepare-enhanced-kaggle-test-data" class="level3">
 <h3 class="anchored" data-anchor-id="prepare-enhanced-kaggle-test-data">Prepare Enhanced Kaggle Test Data</h3>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb81"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Join supplementary features to the Kaggle test data</span></span>
-<span id="cb81-2"><a href="#cb81-2" aria-hidden="true" tabindex="-1"></a>enhanced_test <span class="ot">&lt;-</span> test_prepared <span class="sc">|&gt;</span></span>
-<span id="cb81-3"><a href="#cb81-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(bureau_features, <span class="at">by =</span> <span class="st">&quot;SK_ID_CURR&quot;</span>) <span class="sc">|&gt;</span></span>
-<span id="cb81-4"><a href="#cb81-4" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(previous_features, <span class="at">by =</span> <span class="st">&quot;SK_ID_CURR&quot;</span>) <span class="sc">|&gt;</span></span>
-<span id="cb81-5"><a href="#cb81-5" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(installment_features, <span class="at">by =</span> <span class="st">&quot;SK_ID_CURR&quot;</span>) <span class="sc">|&gt;</span></span>
-<span id="cb81-6"><a href="#cb81-6" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(pos_features, <span class="at">by =</span> <span class="st">&quot;SK_ID_CURR&quot;</span>) <span class="sc">|&gt;</span></span>
-<span id="cb81-7"><a href="#cb81-7" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(credit_card_features, <span class="at">by =</span> <span class="st">&quot;SK_ID_CURR&quot;</span>) <span class="sc">|&gt;</span></span>
-<span id="cb81-8"><a href="#cb81-8" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
-<span id="cb81-9"><a href="#cb81-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">BUREAU_HISTORY_MISSING =</span> <span class="fu">as.integer</span>(<span class="fu">is.na</span>(BUREAU_LOAN_COUNT)),</span>
-<span id="cb81-10"><a href="#cb81-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">PREV_HISTORY_MISSING =</span> <span class="fu">as.integer</span>(<span class="fu">is.na</span>(PREV_APP_COUNT)),</span>
-<span id="cb81-11"><a href="#cb81-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">INST_HISTORY_MISSING =</span> <span class="fu">as.integer</span>(<span class="fu">is.na</span>(INST_PAYMENT_COUNT)),</span>
-<span id="cb81-12"><a href="#cb81-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">POS_HISTORY_MISSING =</span> <span class="fu">as.integer</span>(<span class="fu">is.na</span>(POS_RECORD_COUNT)),</span>
-<span id="cb81-13"><a href="#cb81-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">CC_HISTORY_MISSING =</span> <span class="fu">as.integer</span>(<span class="fu">is.na</span>(CC_RECORD_COUNT))</span>
-<span id="cb81-14"><a href="#cb81-14" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb81-15"><a href="#cb81-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb81-16"><a href="#cb81-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Confirm all test applicants are retained</span></span>
-<span id="cb81-17"><a href="#cb81-17" aria-hidden="true" tabindex="-1"></a><span class="fu">stopifnot</span>(<span class="fu">nrow</span>(enhanced_test) <span class="sc">==</span> <span class="fu">nrow</span>(test_prepared))</span>
-<span id="cb81-18"><a href="#cb81-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb81-19"><a href="#cb81-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Select the same predictors used during training</span></span>
-<span id="cb81-20"><a href="#cb81-20" aria-hidden="true" tabindex="-1"></a>enhanced_test_model <span class="ot">&lt;-</span> enhanced_test <span class="sc">|&gt;</span></span>
-<span id="cb81-21"><a href="#cb81-21" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(dplyr<span class="sc">::</span><span class="fu">all_of</span>(enhanced_predictors))</span>
-<span id="cb81-22"><a href="#cb81-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb81-23"><a href="#cb81-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Impute missing values using TRAINING medians</span></span>
-<span id="cb81-24"><a href="#cb81-24" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (variable <span class="cf">in</span> enhanced_predictors) {</span>
-<span id="cb81-25"><a href="#cb81-25" aria-hidden="true" tabindex="-1"></a>  missing_values <span class="ot">&lt;-</span> <span class="sc">!</span><span class="fu">is.finite</span>(enhanced_test_model[[variable]])</span>
-<span id="cb81-26"><a href="#cb81-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb81-27"><a href="#cb81-27" aria-hidden="true" tabindex="-1"></a>  enhanced_test_model[[variable]][missing_values] <span class="ot">&lt;-</span></span>
-<span id="cb81-28"><a href="#cb81-28" aria-hidden="true" tabindex="-1"></a>    enhanced_medians[[variable]]</span>
-<span id="cb81-29"><a href="#cb81-29" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb81-30"><a href="#cb81-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb81-31"><a href="#cb81-31" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify dimensions and missing values</span></span>
-<span id="cb81-32"><a href="#cb81-32" aria-hidden="true" tabindex="-1"></a><span class="fu">dim</span>(enhanced_test_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb88"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Join supplementary features to the Kaggle test data</span></span>
+<span id="cb88-2"><a href="#cb88-2" aria-hidden="true" tabindex="-1"></a>enhanced_test <span class="ot">&lt;-</span> test_prepared <span class="sc">|&gt;</span></span>
+<span id="cb88-3"><a href="#cb88-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(bureau_features, <span class="at">by =</span> <span class="st">&quot;SK_ID_CURR&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb88-4"><a href="#cb88-4" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(previous_features, <span class="at">by =</span> <span class="st">&quot;SK_ID_CURR&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb88-5"><a href="#cb88-5" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(installment_features, <span class="at">by =</span> <span class="st">&quot;SK_ID_CURR&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb88-6"><a href="#cb88-6" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(pos_features, <span class="at">by =</span> <span class="st">&quot;SK_ID_CURR&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb88-7"><a href="#cb88-7" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(credit_card_features, <span class="at">by =</span> <span class="st">&quot;SK_ID_CURR&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb88-8"><a href="#cb88-8" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
+<span id="cb88-9"><a href="#cb88-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">BUREAU_HISTORY_MISSING =</span> <span class="fu">as.integer</span>(<span class="fu">is.na</span>(BUREAU_LOAN_COUNT)),</span>
+<span id="cb88-10"><a href="#cb88-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">PREV_HISTORY_MISSING =</span> <span class="fu">as.integer</span>(<span class="fu">is.na</span>(PREV_APP_COUNT)),</span>
+<span id="cb88-11"><a href="#cb88-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">INST_HISTORY_MISSING =</span> <span class="fu">as.integer</span>(<span class="fu">is.na</span>(INST_PAYMENT_COUNT)),</span>
+<span id="cb88-12"><a href="#cb88-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">POS_HISTORY_MISSING =</span> <span class="fu">as.integer</span>(<span class="fu">is.na</span>(POS_RECORD_COUNT)),</span>
+<span id="cb88-13"><a href="#cb88-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">CC_HISTORY_MISSING =</span> <span class="fu">as.integer</span>(<span class="fu">is.na</span>(CC_RECORD_COUNT))</span>
+<span id="cb88-14"><a href="#cb88-14" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb88-15"><a href="#cb88-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb88-16"><a href="#cb88-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Confirm all test applicants are retained</span></span>
+<span id="cb88-17"><a href="#cb88-17" aria-hidden="true" tabindex="-1"></a><span class="fu">stopifnot</span>(<span class="fu">nrow</span>(enhanced_test) <span class="sc">==</span> <span class="fu">nrow</span>(test_prepared))</span>
+<span id="cb88-18"><a href="#cb88-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb88-19"><a href="#cb88-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Select the same predictors used during training</span></span>
+<span id="cb88-20"><a href="#cb88-20" aria-hidden="true" tabindex="-1"></a>enhanced_test_model <span class="ot">&lt;-</span> enhanced_test <span class="sc">|&gt;</span></span>
+<span id="cb88-21"><a href="#cb88-21" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(dplyr<span class="sc">::</span><span class="fu">all_of</span>(enhanced_predictors))</span>
+<span id="cb88-22"><a href="#cb88-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb88-23"><a href="#cb88-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Impute missing values using TRAINING medians</span></span>
+<span id="cb88-24"><a href="#cb88-24" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (variable <span class="cf">in</span> enhanced_predictors) {</span>
+<span id="cb88-25"><a href="#cb88-25" aria-hidden="true" tabindex="-1"></a>  missing_values <span class="ot">&lt;-</span> <span class="sc">!</span><span class="fu">is.finite</span>(enhanced_test_model[[variable]])</span>
+<span id="cb88-26"><a href="#cb88-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb88-27"><a href="#cb88-27" aria-hidden="true" tabindex="-1"></a>  enhanced_test_model[[variable]][missing_values] <span class="ot">&lt;-</span></span>
+<span id="cb88-28"><a href="#cb88-28" aria-hidden="true" tabindex="-1"></a>    enhanced_medians[[variable]]</span>
+<span id="cb88-29"><a href="#cb88-29" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb88-30"><a href="#cb88-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb88-31"><a href="#cb88-31" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify dimensions and missing values</span></span>
+<span id="cb88-32"><a href="#cb88-32" aria-hidden="true" tabindex="-1"></a><span class="fu">dim</span>(enhanced_test_model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] 48744    33</code></pre>
+<pre><code>[1] 48744    36</code></pre>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb83"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sum</span>(<span class="fu">is.na</span>(enhanced_test_model))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb90"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb90-1"><a href="#cb90-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sum</span>(<span class="fu">is.na</span>(enhanced_test_model))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>[1] 0</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb92"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Examine applicant 100067</span></span>
+<span id="cb92-2"><a href="#cb92-2" aria-hidden="true" tabindex="-1"></a>applicant_row <span class="ot">&lt;-</span> <span class="fu">which</span>(enhanced_test<span class="sc">$</span>SK_ID_CURR <span class="sc">==</span> <span class="dv">100067</span>)</span>
+<span id="cb92-3"><a href="#cb92-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-4"><a href="#cb92-4" aria-hidden="true" tabindex="-1"></a>applicant_values <span class="ot">&lt;-</span> enhanced_test_model[applicant_row, , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb92-5"><a href="#cb92-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-6"><a href="#cb92-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate each predictor&#39;s contribution to the prediction</span></span>
+<span id="cb92-7"><a href="#cb92-7" aria-hidden="true" tabindex="-1"></a>applicant_contributions <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(applicant_values[<span class="dv">1</span>, ]) <span class="sc">*</span></span>
+<span id="cb92-8"><a href="#cb92-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coef</span>(enhanced_model)[<span class="sc">-</span><span class="dv">1</span>]</span>
+<span id="cb92-9"><a href="#cb92-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-10"><a href="#cb92-10" aria-hidden="true" tabindex="-1"></a>contribution_table <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb92-11"><a href="#cb92-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">Predictor =</span> <span class="fu">names</span>(<span class="fu">coef</span>(enhanced_model))[<span class="sc">-</span><span class="dv">1</span>],</span>
+<span id="cb92-12"><a href="#cb92-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">Contribution =</span> applicant_contributions</span>
+<span id="cb92-13"><a href="#cb92-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb92-14"><a href="#cb92-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-15"><a href="#cb92-15" aria-hidden="true" tabindex="-1"></a>contribution_table <span class="ot">&lt;-</span> contribution_table[</span>
+<span id="cb92-16"><a href="#cb92-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">order</span>(<span class="fu">abs</span>(contribution_table<span class="sc">$</span>Contribution), <span class="at">decreasing =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb92-17"><a href="#cb92-17" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb92-18"><a href="#cb92-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-19"><a href="#cb92-19" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(contribution_table, <span class="dv">10</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>                                              Predictor Contribution
+CREDIT_GOODS_RATIO                   CREDIT_GOODS_RATIO    1.4136908
+EXT_SOURCE_2                               EXT_SOURCE_2   -1.0021181
+PREV_REFUSED_COUNT                   PREV_REFUSED_COUNT    0.7605268
+BUREAU_LOAN_COUNT                     BUREAU_LOAN_COUNT   -0.5992539
+BUREAU_ACTIVE_COUNT                 BUREAU_ACTIVE_COUNT    0.4634821
+EXT_SOURCE_3                               EXT_SOURCE_3   -0.4575900
+EXT_SOURCE_1                               EXT_SOURCE_1   -0.3093567
+POS_RECORD_COUNT                       POS_RECORD_COUNT   -0.2952994
+INST_PAYMENT_COUNT                   INST_PAYMENT_COUNT   -0.2712295
+POS_AVG_FUTURE_INSTALLMENTS POS_AVG_FUTURE_INSTALLMENTS    0.2215625</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb94"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb94-1"><a href="#cb94-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify applicant 100067&#39;s predicted probability</span></span>
+<span id="cb94-2"><a href="#cb94-2" aria-hidden="true" tabindex="-1"></a><span class="fu">predict</span>(enhanced_model, <span class="at">newdata =</span> applicant_values, <span class="at">type =</span> <span class="st">&quot;response&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>        1 
+0.1916959 </code></pre>
 </div>
 </div>
 </section>
 <section id="generate-enhanced-kaggle-submission" class="level3">
 <h3 class="anchored" data-anchor-id="generate-enhanced-kaggle-submission">Generate Enhanced Kaggle Submission</h3>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb85"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb85-1"><a href="#cb85-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Predict default probabilities</span></span>
-<span id="cb85-2"><a href="#cb85-2" aria-hidden="true" tabindex="-1"></a>enhanced_probabilities <span class="ot">&lt;-</span> <span class="fu">predict</span>(</span>
-<span id="cb85-3"><a href="#cb85-3" aria-hidden="true" tabindex="-1"></a>  enhanced_model,</span>
-<span id="cb85-4"><a href="#cb85-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">newdata =</span> enhanced_test_model,</span>
-<span id="cb85-5"><a href="#cb85-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">type =</span> <span class="st">&quot;response&quot;</span></span>
-<span id="cb85-6"><a href="#cb85-6" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb85-7"><a href="#cb85-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb85-8"><a href="#cb85-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Create Kaggle submission</span></span>
-<span id="cb85-9"><a href="#cb85-9" aria-hidden="true" tabindex="-1"></a>enhanced_submission <span class="ot">&lt;-</span> tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
-<span id="cb85-10"><a href="#cb85-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">SK_ID_CURR =</span> enhanced_test<span class="sc">$</span>SK_ID_CURR,</span>
-<span id="cb85-11"><a href="#cb85-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">TARGET =</span> <span class="fu">as.numeric</span>(enhanced_probabilities)</span>
-<span id="cb85-12"><a href="#cb85-12" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb85-13"><a href="#cb85-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb85-14"><a href="#cb85-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify submission</span></span>
-<span id="cb85-15"><a href="#cb85-15" aria-hidden="true" tabindex="-1"></a><span class="fu">stopifnot</span>(</span>
-<span id="cb85-16"><a href="#cb85-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">nrow</span>(enhanced_submission) <span class="sc">==</span> <span class="dv">48744</span>,</span>
-<span id="cb85-17"><a href="#cb85-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">all</span>(<span class="fu">is.finite</span>(enhanced_submission<span class="sc">$</span>TARGET)),</span>
-<span id="cb85-18"><a href="#cb85-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">all</span>(enhanced_submission<span class="sc">$</span>TARGET <span class="sc">&gt;=</span> <span class="dv">0</span>),</span>
-<span id="cb85-19"><a href="#cb85-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">all</span>(enhanced_submission<span class="sc">$</span>TARGET <span class="sc">&lt;=</span> <span class="dv">1</span>)</span>
-<span id="cb85-20"><a href="#cb85-20" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb85-21"><a href="#cb85-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb85-22"><a href="#cb85-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Save submission</span></span>
-<span id="cb85-23"><a href="#cb85-23" aria-hidden="true" tabindex="-1"></a>readr<span class="sc">::</span><span class="fu">write_csv</span>(</span>
-<span id="cb85-24"><a href="#cb85-24" aria-hidden="true" tabindex="-1"></a>  enhanced_submission,</span>
-<span id="cb85-25"><a href="#cb85-25" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;kaggle_submission_enhanced.csv&quot;</span></span>
-<span id="cb85-26"><a href="#cb85-26" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb85-27"><a href="#cb85-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb85-28"><a href="#cb85-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Preview predictions</span></span>
-<span id="cb85-29"><a href="#cb85-29" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(enhanced_submission)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb96"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb96-1"><a href="#cb96-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Predict default probabilities</span></span>
+<span id="cb96-2"><a href="#cb96-2" aria-hidden="true" tabindex="-1"></a>enhanced_probabilities <span class="ot">&lt;-</span> <span class="fu">predict</span>(</span>
+<span id="cb96-3"><a href="#cb96-3" aria-hidden="true" tabindex="-1"></a>  enhanced_model,</span>
+<span id="cb96-4"><a href="#cb96-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">newdata =</span> enhanced_test_model,</span>
+<span id="cb96-5"><a href="#cb96-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">type =</span> <span class="st">&quot;response&quot;</span></span>
+<span id="cb96-6"><a href="#cb96-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb96-7"><a href="#cb96-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb96-8"><a href="#cb96-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Create Kaggle submission</span></span>
+<span id="cb96-9"><a href="#cb96-9" aria-hidden="true" tabindex="-1"></a>enhanced_submission <span class="ot">&lt;-</span> tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
+<span id="cb96-10"><a href="#cb96-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">SK_ID_CURR =</span> enhanced_test<span class="sc">$</span>SK_ID_CURR,</span>
+<span id="cb96-11"><a href="#cb96-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">TARGET =</span> <span class="fu">as.numeric</span>(enhanced_probabilities)</span>
+<span id="cb96-12"><a href="#cb96-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb96-13"><a href="#cb96-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb96-14"><a href="#cb96-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify submission</span></span>
+<span id="cb96-15"><a href="#cb96-15" aria-hidden="true" tabindex="-1"></a><span class="fu">stopifnot</span>(</span>
+<span id="cb96-16"><a href="#cb96-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">nrow</span>(enhanced_submission) <span class="sc">==</span> <span class="dv">48744</span>,</span>
+<span id="cb96-17"><a href="#cb96-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">all</span>(<span class="fu">is.finite</span>(enhanced_submission<span class="sc">$</span>TARGET)),</span>
+<span id="cb96-18"><a href="#cb96-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">all</span>(enhanced_submission<span class="sc">$</span>TARGET <span class="sc">&gt;=</span> <span class="dv">0</span>),</span>
+<span id="cb96-19"><a href="#cb96-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">all</span>(enhanced_submission<span class="sc">$</span>TARGET <span class="sc">&lt;=</span> <span class="dv">1</span>)</span>
+<span id="cb96-20"><a href="#cb96-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb96-21"><a href="#cb96-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb96-22"><a href="#cb96-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Save submission</span></span>
+<span id="cb96-23"><a href="#cb96-23" aria-hidden="true" tabindex="-1"></a>readr<span class="sc">::</span><span class="fu">write_csv</span>(</span>
+<span id="cb96-24"><a href="#cb96-24" aria-hidden="true" tabindex="-1"></a>  enhanced_submission,</span>
+<span id="cb96-25"><a href="#cb96-25" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;kaggle_submission_ext_source.csv&quot;</span></span>
+<span id="cb96-26"><a href="#cb96-26" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb96-27"><a href="#cb96-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb96-28"><a href="#cb96-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Preview predictions</span></span>
+<span id="cb96-29"><a href="#cb96-29" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(enhanced_submission)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code># A tibble: 6 × 2
   SK_ID_CURR TARGET
        &lt;dbl&gt;  &lt;dbl&gt;
-1     100001 0.0781
-2     100005 0.104 
-3     100013 0.0429
-4     100028 0.0482
-5     100038 0.0752
-6     100042 0.0492</code></pre>
+1     100001 0.0570
+2     100005 0.136 
+3     100013 0.0343
+4     100028 0.0324
+5     100038 0.117 
+6     100042 0.0390</code></pre>
 </div>
 </div>
 </section>
@@ -3922,22 +4077,22 @@ vertical-align: -.125em;
 <h2 class="anchored" data-anchor-id="cross-validation-experiment-summary">Cross-Validation Experiment Summary</h2>
 <p>The following table summarizes how predictive performance changed as supplementary credit history datasets were added to the Logistic Regression model.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb87"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb87-1"><a href="#cb87-1" aria-hidden="true" tabindex="-1"></a>tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
-<span id="cb87-2"><a href="#cb87-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">Model =</span> <span class="fu">c</span>(</span>
-<span id="cb87-3"><a href="#cb87-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Application + Bureau&quot;</span>,</span>
-<span id="cb87-4"><a href="#cb87-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;+ Previous Applications&quot;</span>,</span>
-<span id="cb87-5"><a href="#cb87-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;+ Installment Payments&quot;</span>,</span>
-<span id="cb87-6"><a href="#cb87-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;+ POS/CASH Balance&quot;</span>,</span>
-<span id="cb87-7"><a href="#cb87-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;+ Credit Card Balance&quot;</span></span>
-<span id="cb87-8"><a href="#cb87-8" aria-hidden="true" tabindex="-1"></a>  ),</span>
-<span id="cb87-9"><a href="#cb87-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">Mean_ROC_AUC =</span> <span class="fu">c</span>(</span>
-<span id="cb87-10"><a href="#cb87-10" aria-hidden="true" tabindex="-1"></a>    bureau_cv_summary<span class="sc">$</span>Bureau_Mean_AUC,</span>
-<span id="cb87-11"><a href="#cb87-11" aria-hidden="true" tabindex="-1"></a>    previous_cv_summary<span class="sc">$</span>Combined_Mean_AUC,</span>
-<span id="cb87-12"><a href="#cb87-12" aria-hidden="true" tabindex="-1"></a>    installment_cv_summary<span class="sc">$</span>Installment_Mean_AUC,</span>
-<span id="cb87-13"><a href="#cb87-13" aria-hidden="true" tabindex="-1"></a>    pos_cv_summary<span class="sc">$</span>POS_Mean_AUC,</span>
-<span id="cb87-14"><a href="#cb87-14" aria-hidden="true" tabindex="-1"></a>    credit_card_cv_summary<span class="sc">$</span>Credit_Card_Mean_AUC</span>
-<span id="cb87-15"><a href="#cb87-15" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb87-16"><a href="#cb87-16" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb98"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a>tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
+<span id="cb98-2"><a href="#cb98-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">Model =</span> <span class="fu">c</span>(</span>
+<span id="cb98-3"><a href="#cb98-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Application + Bureau&quot;</span>,</span>
+<span id="cb98-4"><a href="#cb98-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;+ Previous Applications&quot;</span>,</span>
+<span id="cb98-5"><a href="#cb98-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;+ Installment Payments&quot;</span>,</span>
+<span id="cb98-6"><a href="#cb98-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;+ POS/CASH Balance&quot;</span>,</span>
+<span id="cb98-7"><a href="#cb98-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;+ Credit Card Balance&quot;</span></span>
+<span id="cb98-8"><a href="#cb98-8" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb98-9"><a href="#cb98-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">Mean_ROC_AUC =</span> <span class="fu">c</span>(</span>
+<span id="cb98-10"><a href="#cb98-10" aria-hidden="true" tabindex="-1"></a>    bureau_cv_summary<span class="sc">$</span>Bureau_Mean_AUC,</span>
+<span id="cb98-11"><a href="#cb98-11" aria-hidden="true" tabindex="-1"></a>    previous_cv_summary<span class="sc">$</span>Combined_Mean_AUC,</span>
+<span id="cb98-12"><a href="#cb98-12" aria-hidden="true" tabindex="-1"></a>    installment_cv_summary<span class="sc">$</span>Installment_Mean_AUC,</span>
+<span id="cb98-13"><a href="#cb98-13" aria-hidden="true" tabindex="-1"></a>    pos_cv_summary<span class="sc">$</span>POS_Mean_AUC,</span>
+<span id="cb98-14"><a href="#cb98-14" aria-hidden="true" tabindex="-1"></a>    credit_card_cv_summary<span class="sc">$</span>Credit_Card_Mean_AUC</span>
+<span id="cb98-15"><a href="#cb98-15" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb98-16"><a href="#cb98-16" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code># A tibble: 5 × 2
   Model                   Mean_ROC_AUC
@@ -3952,7 +4107,7 @@ vertical-align: -.125em;
 </section>
 <section id="kaggle-evaluation-results" class="level2">
 <h2 class="anchored" data-anchor-id="kaggle-evaluation-results">Kaggle Evaluation Results</h2>
-<p>Two logistic regression models were submitted to the Home Credit Default Risk competition on Kaggle.</p>
+<p>Three Logistic Regression models were submitted to the Home Credit Default Risk competition on Kaggle. The initial model used six predictors, the enhanced model incorporated 33 predictors, and the revised model included 36 predictors after adding EXT_SOURCE_1, EXT_SOURCE_2, and EXT_SOURCE_3.</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -3963,35 +4118,45 @@ vertical-align: -.125em;
 </thead>
 <tbody>
 <tr class="odd">
-<td>Initial Logistic Regression</td>
+<td>Initial Logistic Regression (6 predictors)</td>
 <td style="text-align: right;">0.62268</td>
 <td style="text-align: right;">0.60727</td>
 </tr>
 <tr class="even">
-<td>Enhanced Logistic Regression</td>
+<td>Enhanced Logistic Regression (33 predictors)</td>
 <td style="text-align: right;">0.69607</td>
 <td style="text-align: right;">0.68375</td>
 </tr>
+<tr class="odd">
+<td>Updated Logistic Regression (36 predictors)</td>
+<td style="text-align: right;">0.74751</td>
+<td style="text-align: right;">0.73212</td>
+</tr>
 </tbody>
 </table>
-<p>The enhanced model improved the public ROC AUC by 0.07339 and the private ROC AUC by 0.07648.</p>
-<p>The enhanced model incorporated information from five supplementary datasets: Bureau, Previous Applications, Installment Payments, POS/CASH Balance, and Credit Card Balance.</p>
-<p>These results suggest that applicants’ historical borrowing and repayment behavior provides useful additional information for predicting payment difficulties.</p>
+<p>The public and private AUC values above are documented from the original Kaggle evaluation. The local submission CSV files available in this project do not independently verify the recorded 36-predictor scores.</p>
+<p>The initial Logistic Regression model achieved a public Kaggle ROC AUC of 0.62268 and a private ROC AUC of 0.60727.</p>
+<p>Adding features from five supplementary credit-history datasets improved performance to 0.69607 (public) and 0.68375 (private).</p>
+<p>After re-evaluating predictor selection, three additional variables—EXT_SOURCE_1, EXT_SOURCE_2, and EXT_SOURCE_3—were incorporated into the enhanced model.</p>
+<p>The revised 36-predictor Logistic Regression model achieved a public Kaggle ROC AUC of <strong>0.74751</strong> and a private ROC AUC of <strong>0.73212</strong>. Five-fold cross-validation on the full training dataset produced a mean ROC AUC of approximately <strong>0.748</strong>.</p>
+<p>These results demonstrate that incorporating the external credit score predictors substantially improved the model’s ability to distinguish applicants who experience payment difficulties from those who do not.</p>
 </section>
 <section id="model-limitations" class="level2">
 <h2 class="anchored" data-anchor-id="model-limitations">Model Limitations</h2>
-<p>Although the enhanced Logistic Regression model outperformed the initial model, its private Kaggle ROC AUC of 0.68375 indicates that there is still room for improvement. The model can distinguish between higher-risk and lower-risk applicants better than random guessing, but it cannot perfectly identify applicants who will experience payment difficulties.</p>
-<p>The dataset is also highly imbalanced, with approximately 8.1% of applicants experiencing payment difficulties. Although ROC AUC helps evaluate the model under class imbalance, additional metrics such as precision, recall, and the precision-recall curve would provide a more complete understanding of its performance.</p>
-<p>The supplementary feature experiments were evaluated using approximately 10,000 applicants and three-fold cross-validation to reduce computational requirements. Therefore, the results may not fully represent performance across the entire training population. More extensive validation would help assess the stability of the improvements.</p>
-<p>Another limitation is the use of Logistic Regression, which may not capture complex nonlinear relationships between financial variables. More advanced models, such as gradient boosting, could potentially improve predictive performance.</p>
+<p>Although the revised 36-predictor Logistic Regression model achieved a mean five-fold cross-validation ROC AUC of 0.748, its Kaggle public and private ROC AUC scores were 0.74751 and 0.73212, respectively. This difference indicates that predictive performance can vary across evaluation datasets.</p>
+<p>The dataset is highly imbalanced, with approximately 8.1% of applicants experiencing payment difficulties. Although ROC AUC is useful for evaluating discrimination under class imbalance, additional metrics such as precision, recall, and the precision-recall curve would provide a more complete assessment.</p>
+<p>The initial supplementary feature experiments used approximately 10,000 applicants and three-fold cross-validation to reduce computational requirements. The final comparison between the 33-predictor and 36-predictor models used the full training dataset of 307,511 applicants with five-fold stratified cross-validation, providing a more comprehensive evaluation.</p>
+<p>Another limitation is the use of Logistic Regression, which may not fully capture nonlinear relationships between financial variables. More advanced approaches, such as gradient boosting, could potentially improve predictive performance.</p>
 <p>Finally, because this model concerns lending decisions, predictive performance alone would not be sufficient for real-world deployment. Fairness, interpretability, probability calibration, and the consequences of incorrect predictions would also need to be evaluated.</p>
 </section>
 <section id="conclusion" class="level2">
 <h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
 <p>This project explored how predictive modeling can help Home Credit identify applicants who are more likely to experience payment difficulties. Logistic Regression, Decision Tree, and Random Forest models were compared using cross-validation and ROC AUC. Logistic Regression performed best among the initial models tested.</p>
-<p>The most significant improvement came from incorporating historical financial information. By adding features from Bureau, Previous Applications, Installment Payments, POS/CASH Balance, and Credit Card Balance datasets, the enhanced Logistic Regression model achieved a public Kaggle ROC AUC of 0.69607 and a private ROC AUC of 0.68375, compared with 0.62268 and 0.60727 for the initial model.</p>
-<p>These results suggest that an applicant’s previous borrowing and repayment behavior provides valuable information beyond the initial loan application. From a business perspective, improved risk predictions could help lenders make more informed credit decisions, although additional validation would be necessary before using the model in practice.</p>
-<p>Future improvements could include testing gradient boosting models, developing additional features, evaluating precision and recall, and performing more extensive cross-validation. These steps could help improve predictive performance and assess the model’s reliability.</p>
+<p>The initial six-predictor Logistic Regression model achieved a public Kaggle ROC AUC of 0.62268 and a private ROC AUC of 0.60727. Adding information from five supplementary datasets—Bureau, Previous Applications, Installment Payments, POS/CASH Balance, and Credit Card Balance—improved performance to 0.69607 (public) and 0.68375 (private).</p>
+<p>After re-evaluating predictor selection, three additional variables—EXT_SOURCE_1, EXT_SOURCE_2, and EXT_SOURCE_3—were incorporated into the enhanced model. The revised 36-predictor Logistic Regression model achieved a mean five-fold cross-validation ROC AUC of <strong>0.748</strong>, a public Kaggle ROC AUC of <strong>0.74751</strong>, and a private Kaggle ROC AUC of <strong>0.73212</strong>.</p>
+<p>These results demonstrate that selecting informative predictors can substantially improve predictive performance. In particular, the external credit score variables provided valuable information beyond the original application and historical credit features.</p>
+<p>From a business perspective, improved risk predictions could help lenders identify higher-risk applicants and support more informed lending decisions. However, additional evaluation of fairness, interpretability, and model reliability would be necessary before real-world implementation.</p>
+<p>Future improvements could include testing gradient boosting models, engineering additional predictors, and evaluating precision, recall, and probability calibration.</p>
 </section>
 </section>
 

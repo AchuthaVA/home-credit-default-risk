@@ -1,140 +1,82 @@
 # Home Credit Default Risk
 
-## MSBA Capstone Project
+## IS 6812 Model Card project
 
-This repository contains my work for the Home Credit Default Risk project in the University of Utah MSBA Capstone course.
+This project develops and documents a model that estimates an applicant's risk of recorded payment difficulties for the Home Credit Default Risk dataset. It is an academic decision-support analysis, not a production lending system. In this dataset, `TARGET = 1` records payment difficulties; it is not a confirmed permanent loan loss.
 
-The project focuses on using predictive analytics to identify loan applicants who may be at risk of default. Throughout the semester, this repository will document the project from business problem definition and exploratory data analysis through modeling, business recommendations, and presentation of findings.
+The final model is a binomial logistic regression with 36 predictors. It was fit on 307,511 training applicants and combines application and affordability information, aggregated historical credit and repayment information, and three opaque `EXT_SOURCE` variables. The final workflow is documented in [modeling.qmd](modeling.qmd).
 
-## Data Preparation and Feature Engineering
+## Model performance
 
-The `data_preparation.R` script prepares the Home Credit application training and test datasets for later predictive modeling. The transformations are based on findings and decisions from the exploratory data analysis (EDA).
+The original modeling workflow reports a mean five-fold stratified cross-validation ROC AUC of **0.7481**. Separately, pooling all 307,511 out-of-fold (OOF) predictions produced ROC AUC **0.748113**. These are different calculations and should not be treated as identical statistics.
 
-### What the Script Does
+The final-model results documented in `modeling.qmd` report Kaggle ROC AUC of **0.74751** on the public leaderboard and **0.73212** on the private leaderboard. The local submission files available in the project do not independently verify that the 36-predictor submission produced those scores; they are therefore documented competition results with a provenance caveat.
 
-The script applies the following cleaning and feature-engineering steps:
+## Model Card
 
-- Replaces the special `DAYS_EMPLOYED` value of 365243 with missing (`NA`) because the EDA showed that it does not represent a valid employment duration.
-- Converts `DAYS_BIRTH` into `AGE_YEARS` to make applicant age easier to interpret.
-- Converts valid `DAYS_EMPLOYED` values into `EMPLOYMENT_YEARS`.
-- Converts the `XNA` value in `CODE_GENDER` and the `Unknown` value in `NAME_FAMILY_STATUS` to missing values because the EDA identified them as unavailable category information.
-- Creates `ANNUITY_INCOME_RATIO`, which compares the required annuity payment with applicant income.
-- Creates `CREDIT_GOODS_RATIO`, which compares the requested credit amount with the price of the goods.
-- Creates `COMMONAREA_AVG_MISSING` to preserve the missingness information identified in the EDA. The EDA found a payment-difficulty rate of 8.57% when `COMMONAREA_AVG` was missing compared with 6.91% when it was not missing.
-- Imputes missing `COMMONAREA_AVG` values using the median calculated from the training data.
+[model_card.qmd](model_card.qmd) is the reproducible Quarto source for the final nine-section Model Card:
 
-During the initial EDA and application-level data preparation, supplementary datasets were not incorporated. However, the predictive modeling phase expanded the analysis by aggregating and joining five additional datasets: Bureau, Previous Applications, Installment Payments, POS/CASH Balance, and Credit Card Balance. These datasets provided historical credit and repayment features that improved the model's predictive performance.
+1. Model Details
+2. Intended Use
+3. Performance
+4. Decision Threshold
+5. Explainability
+6. Adverse Action Mapping
+7. Fairness
+8. Limitations and Risks
+9. Executive Summary
 
-Interaction terms and binned variables were not included in the initial application-level preparation because the EDA did not identify a specific need for them.
+The Model Card uses an illustrative approval rule: approve an applicant when predicted risk is strictly below **0.12**. This threshold is a retrospective scenario based on unverified financial assumptions; it is not a deployment recommendation.
 
-### Train/Test Consistency
+The Model Card includes:
 
-Parameters used for preprocessing are learned from the training data only. In particular, the median used to impute `COMMONAREA_AVG` is calculated from the training dataset and stored for reuse when preparing both training and test data. The training-derived median was approximately `0.0211`. This prevents information from the test dataset from influencing preprocessing decisions.
+- OOF threshold-performance analysis;
+- illustrative financial sensitivity analysis using standardized exposure units and `AMT_CREDIT` exposure-proxy units, not realized profit;
+- exact linear-model SHAP explanations on the log-odds scale;
+- proposed adverse-action mappings, explicitly not legally approved notices; and
+- descriptive fairness analyses for reported gender and education groups using OOF predictions.
 
-Validation checks were performed after preparation:
+[model_card.html](model_card.html) is the rendered, self-contained version of the Model Card. Open that file directly in a modern web browser to view the report, tables, and embedded figures; rendering R or downloading the ignored artifacts is not required for viewing it.
 
-- Training-only predictor columns, excluding `TARGET`: `character(0)`
-- Test-only predictor columns: `character(0)`
-- One row per `SK_ID_CURR` in the prepared training data: `TRUE`
-- One row per `SK_ID_CURR` in the prepared test data: `TRUE`
+## Repository files
 
-These checks confirm that the prepared training and test datasets contain identical predictor columns, except for `TARGET`, and preserve one application-level row per `SK_ID_CURR`.
+- `data_preparation.R` — reusable application preparation and historical-data aggregation functions.
+- `eda.qmd` — exploratory data analysis notebook.
+- `modeling.qmd` / `modeling.html` — modeling workflow and rendered report.
+- `model_card_preparation.R` — recreates the final model artifact and five-fold OOF predictions without rerunning earlier benchmark experiments.
+- `model_card_threshold_analysis.R` — produces threshold metrics from OOF predictions.
+- `model_card_financial_analysis.R` — produces illustrative financial threshold and sensitivity outputs.
+- `model_card_shap_analysis.R` — produces exact log-odds SHAP outputs and figures from the saved model.
+- `model_card_adverse_action_analysis.R` — produces proposed feature-to-reason mappings and an illustrative declined-applicant explanation.
+- `model_card_fairness_analysis.R` — produces descriptive OOF fairness metrics and figures.
+- `model_card.qmd` / `model_card.html` — Model Card source and self-contained rendered deliverable.
 
-### How to Run the Script
+## Reproducing Model Card artifacts
 
-The script expects the following input files:
+The raw `Data/` directory and generated `artifacts/` directory are intentionally Git-ignored. Consequently, a fresh clone can open `model_card.html`, but cannot render `model_card.qmd` until the original data and locally generated artifacts are available.
 
-- `Data/application_train.csv`
-- `Data/application_test.csv`
+The scripts directly verify the following inputs and dependencies:
 
-From the project directory, run the following commands in R:
+- `data_preparation.R` and all Model Card scripts use the R `tidyverse` package.
+- `model_card_preparation.R` additionally uses `rsample` for five-fold stratified OOF validation.
+- The preparation, SHAP, and adverse-action scripts require the original application-training and historical Home Credit CSV files under `Data/`; the preparation script writes `artifacts/enhanced_model_36.rds` and `artifacts/enhanced_model_36_oof_predictions.csv`.
+- The threshold, financial, and fairness scripts use the OOF predictions. The financial script also reads `Data/application_train.csv` for `AMT_CREDIT`.
+- The SHAP and adverse-action scripts use the saved model artifact, `data_preparation.R`, and the original historical files. Both verify that the current `data_preparation.R` matches the source checksum stored in the model artifact.
+- `model_card.qmd` checks for all required saved artifacts before rendering. It is rendered with Quarto after the analyses have produced those inputs.
 
-```r
-library(tidyverse)
+With the original data and the required R packages already available, run the scripts from the project root in this order:
 
-source("data_preparation.R")
-
-train_data <- read_csv("Data/application_train.csv", show_col_types = FALSE)
-test_data <- read_csv("Data/application_test.csv", show_col_types = FALSE)
-
-prep_parameters <- learn_preparation_parameters(train_data)
-
-train_prepared <- prepare_application_data(train_data, prep_parameters)
-test_prepared <- prepare_application_data(test_data, prep_parameters)
-
-validation_results <- validate_prepared_data(
-  train_prepared,
-  test_prepared
-)
-
-validation_results
+```text
+model_card_preparation.R
+model_card_threshold_analysis.R
+model_card_financial_analysis.R
+model_card_shap_analysis.R
+model_card_adverse_action_analysis.R
+model_card_fairness_analysis.R
 ```
 
-### Outputs
+Then render `model_card.qmd` with Quarto. These instructions describe the existing scripts only; the repository does not provide package-installation commands or include the raw data/artifacts needed to reproduce the analyses in a new clone.
 
-The preparation workflow creates two prepared data frames in R:
+## Limitations
 
-- `train_prepared`: 307,511 rows and 127 columns. It contains the prepared training applications and retains `TARGET` for later predictive modeling.
-- `test_prepared`: 48,744 rows and 126 columns. It contains the prepared test applications and the same predictor columns as `train_prepared`, excluding `TARGET`.
-
-The prepared datasets include the original application variables along with the engineered variables `AGE_YEARS`, `EMPLOYMENT_YEARS`, `ANNUITY_INCOME_RATIO`, `CREDIT_GOODS_RATIO`, and `COMMONAREA_AVG_MISSING`.
-
-The script does not write prepared data files to the repository. The prepared data frames are created in R for use in later modeling steps.
-
-## Predictive Modeling
-
-The modeling phase evaluated multiple classification algorithms to predict whether loan applicants would experience payment difficulties.
-
-### Models Evaluated
-
-Three classification algorithms were compared using five-fold stratified cross-validation:
-
-| Model | Mean ROC AUC |
-|---|---:|
-| Logistic Regression | 0.602 |
-| Random Forest | 0.567 |
-| Decision Tree | 0.505 |
-
-Logistic Regression achieved the strongest initial performance and was selected for further development. Additional experiments with class weighting and Random Forest hyperparameter tuning did not improve upon its performance.
-
-### Feature Engineering and Model Enhancement
-
-The initial Logistic Regression model used six application-level predictors. The enhanced model incorporated historical financial information from five supplementary datasets:
-
-- **Bureau:** Previous credit accounts, outstanding debt, and overdue payments.
-- **Previous Applications:** Historical loan applications, approvals, and refusals.
-- **Installment Payments:** Payment delays, late payment frequency, and payment shortfalls.
-- **POS/CASH Balance:** Previous loan balances, overdue payments, and installment information.
-- **Credit Card Balance:** Credit card balances, credit limits, and repayment behavior.
-
-The enhanced model used 33 predictors and was trained on the full dataset of 307,511 applicants.
-
-### Kaggle Evaluation Results
-
-Both the initial and enhanced Logistic Regression models were evaluated using the Home Credit Default Risk Kaggle competition.
-
-| Model | Public ROC AUC | Private ROC AUC |
-|---|---:|---:|
-| Initial Logistic Regression | 0.62268 | 0.60727 |
-| Enhanced Logistic Regression | 0.69607 | 0.68375 |
-| Improvement | +0.07339 | +0.07648 |
-
-The results demonstrate that incorporating historical credit and repayment information improved the model's ability to distinguish between higher-risk and lower-risk applicants.
-
-### Business Implications
-
-Improved credit risk prediction could help lenders identify applicants who are more likely to experience payment difficulties and support more informed lending decisions.
-
-However, the enhanced model is not ready for real-world deployment. Further evaluation of fairness, interpretability, probability calibration, and classification errors would be necessary.
-
-### Future Improvements
-
-Future work could explore gradient boosting models, additional feature engineering, precision-recall analysis, and more extensive cross-validation.
-
-### Modeling Files
-
-- `modeling.qmd` — Quarto source notebook containing the modeling workflow, experiments, and results.
-- `modeling.html` — Rendered modeling report.
-- `data_preparation.R` — Reusable application preparation and supplementary feature aggregation functions.
-
-The raw datasets and Kaggle submission files are excluded from the repository using `.gitignore`.
+The model is not deployment-ready. The Model Card documents limitations involving target meaning, calibration, historical-data timing, external-score opacity, financial assumptions, group disparities, external validity, and governance. Any real lending use would require independent validation, approved financial assumptions, monitoring, legal/compliance review, and model-risk governance.

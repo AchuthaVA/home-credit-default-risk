@@ -771,7 +771,8 @@ evaluate_logistic <- function(split, predictors) {
 
   # Calculate ROC AUC
   as.numeric(
-    pROC::auc(
+  pROC::auc(
+    pROC::roc(
       response = validation$TARGET,
       predictor = probabilities,
       levels = c(0, 1),
@@ -779,6 +780,7 @@ evaluate_logistic <- function(split, predictors) {
       quiet = TRUE
     )
   )
+)
 }
 
 # Evaluate both models on identical folds
@@ -1288,9 +1290,11 @@ credit_card_cv_summary <- credit_card_cv_results |>
 credit_card_cv_summary
 ```
 
+
+
 ## Final Enhanced Model
 
-The enhanced model combines application information with Bureau credit history, previous applications, installment payments, POS/CASH balances, and credit card history.
+The final enhanced Logistic Regression model combines application information with Bureau credit history, previous applications, installment payments, POS/CASH balances, and credit card history. After re-evaluating predictor selection, three additional variables EXT_SOURCE_1, EXT_SOURCE_2, and EXT_SOURCE_3 were incorporated to improve predictive performance, bringing the total number of predictors to 36.
 
 ### Prepare Full Training Data
 
@@ -1331,7 +1335,12 @@ enhanced_train |>
 
 ```{r}
 # Use all predictors from our credit card experiment
-enhanced_predictors <- unique(credit_card_predictors)
+enhanced_predictors <- unique(c(
+  credit_card_predictors,
+  "EXT_SOURCE_1",
+  "EXT_SOURCE_2",
+  "EXT_SOURCE_3"
+))
 
 # Select target and predictors
 enhanced_model_data <- enhanced_train |>
@@ -1368,7 +1377,74 @@ nrow(enhanced_model_data)
 
 # Check model fit
 enhanced_model$converged
+coef(enhanced_model)
 ```
+
+### External Credit Score Experiment
+
+The previous enhanced Logistic Regression model used 33 predictors
+from the application and supplementary credit-history datasets.
+
+To improve predictive performance, three additional variables
+were introduced: EXT_SOURCE_1, EXT_SOURCE_2, and EXT_SOURCE_3.
+
+Both models were evaluated using five-fold stratified
+cross-validation on the full training dataset of 307,511 applicants.
+Missing predictor values were imputed using medians calculated
+from each training fold.
+
+```{r}
+# Create five stratified folds
+set.seed(123)
+
+enhanced_folds <- rsample::vfold_cv(
+  enhanced_train,
+  v = 5,
+  strata = TARGET
+)
+
+# Evaluate original 33-predictor model
+auc_33 <- sapply(
+  enhanced_folds$splits,
+  evaluate_logistic,
+  predictors = credit_card_predictors
+)
+
+# Evaluate updated 36-predictor model
+auc_36 <- sapply(
+  enhanced_folds$splits,
+  evaluate_logistic,
+  predictors = enhanced_predictors
+)
+```
+
+```{r}
+# Compare the original and updated models
+validation_comparison <- tibble::tibble(
+  Fold = 1:5,
+  Original_33_AUC = auc_33,
+  Updated_36_AUC = auc_36,
+  Improvement = auc_36 - auc_33
+)
+
+validation_comparison
+
+# Summarize results
+validation_summary <- tibble::tibble(
+  Model = c("Original 33 Predictors", "Updated 36 Predictors"),
+  Mean_AUC = c(mean(auc_33), mean(auc_36)),
+  SD_AUC = c(sd(auc_33), sd(auc_36))
+)
+
+validation_summary
+```
+
+The original 33-predictor model achieved a mean ROC AUC of 0.6866,
+while the updated 36-predictor model achieved 0.7481.
+
+The average improvement was 0.0616 AUC points. Performance
+improved in all five validation folds, indicating that the
+external credit scores contribute meaningful predictive information.
 
 ### Prepare Enhanced Kaggle Test Data
 
@@ -1406,6 +1482,29 @@ for (variable in enhanced_predictors) {
 # Verify dimensions and missing values
 dim(enhanced_test_model)
 sum(is.na(enhanced_test_model))
+
+# Examine applicant 100067
+applicant_row <- which(enhanced_test$SK_ID_CURR == 100067)
+
+applicant_values <- enhanced_test_model[applicant_row, , drop = FALSE]
+
+# Calculate each predictor's contribution to the prediction
+applicant_contributions <- as.numeric(applicant_values[1, ]) *
+  coef(enhanced_model)[-1]
+
+contribution_table <- data.frame(
+  Predictor = names(coef(enhanced_model))[-1],
+  Contribution = applicant_contributions
+)
+
+contribution_table <- contribution_table[
+  order(abs(contribution_table$Contribution), decreasing = TRUE),
+]
+
+head(contribution_table, 10)
+
+# Verify applicant 100067's predicted probability
+predict(enhanced_model, newdata = applicant_values, type = "response")
 ```
 
 ### Generate Enhanced Kaggle Submission
@@ -1435,7 +1534,7 @@ stopifnot(
 # Save submission
 readr::write_csv(
   enhanced_submission,
-  "kaggle_submission_enhanced.csv"
+  "kaggle_submission_ext_source.csv"
 )
 
 # Preview predictions
@@ -1467,28 +1566,35 @@ tibble::tibble(
 
 ## Kaggle Evaluation Results
 
-Two logistic regression models were submitted to the Home Credit Default Risk competition on Kaggle.
+Three Logistic Regression models were submitted to the Home Credit Default Risk competition on Kaggle. The initial model used six predictors, the enhanced model incorporated 33 predictors, and the revised model included 36 predictors after adding EXT_SOURCE_1, EXT_SOURCE_2, and EXT_SOURCE_3.
 
 | Model | Public ROC AUC | Private ROC AUC |
 |---|---:|---:|
-| Initial Logistic Regression | 0.62268 | 0.60727 |
-| Enhanced Logistic Regression | 0.69607 | 0.68375 |
+| Initial Logistic Regression (6 predictors) | 0.62268 | 0.60727 |
+| Enhanced Logistic Regression (33 predictors) | 0.69607 | 0.68375 |
+| Updated Logistic Regression (36 predictors) | 0.74751 | 0.73212 |
 
-The enhanced model improved the public ROC AUC by 0.07339 and the private ROC AUC by 0.07648.
+The public and private AUC values above are documented from the original Kaggle evaluation. The local submission CSV files available in this project do not independently verify the recorded 36-predictor scores.
 
-The enhanced model incorporated information from five supplementary datasets: Bureau, Previous Applications, Installment Payments, POS/CASH Balance, and Credit Card Balance.
+The initial Logistic Regression model achieved a public Kaggle ROC AUC of 0.62268 and a private ROC AUC of 0.60727.
 
-These results suggest that applicants' historical borrowing and repayment behavior provides useful additional information for predicting payment difficulties.
+Adding features from five supplementary credit-history datasets improved performance to 0.69607 (public) and 0.68375 (private).
+
+After re-evaluating predictor selection, three additional variables—EXT_SOURCE_1, EXT_SOURCE_2, and EXT_SOURCE_3—were incorporated into the enhanced model.
+
+The revised 36-predictor Logistic Regression model achieved a public Kaggle ROC AUC of **0.74751** and a private ROC AUC of **0.73212**. Five-fold cross-validation on the full training dataset produced a mean ROC AUC of approximately **0.748**.
+
+These results demonstrate that incorporating the external credit score predictors substantially improved the model's ability to distinguish applicants who experience payment difficulties from those who do not.
 
 ## Model Limitations
 
-Although the enhanced Logistic Regression model outperformed the initial model, its private Kaggle ROC AUC of 0.68375 indicates that there is still room for improvement. The model can distinguish between higher-risk and lower-risk applicants better than random guessing, but it cannot perfectly identify applicants who will experience payment difficulties.
+Although the revised 36-predictor Logistic Regression model achieved a mean five-fold cross-validation ROC AUC of 0.748, its Kaggle public and private ROC AUC scores were 0.74751 and 0.73212, respectively. This difference indicates that predictive performance can vary across evaluation datasets.
 
-The dataset is also highly imbalanced, with approximately 8.1% of applicants experiencing payment difficulties. Although ROC AUC helps evaluate the model under class imbalance, additional metrics such as precision, recall, and the precision-recall curve would provide a more complete understanding of its performance.
+The dataset is highly imbalanced, with approximately 8.1% of applicants experiencing payment difficulties. Although ROC AUC is useful for evaluating discrimination under class imbalance, additional metrics such as precision, recall, and the precision-recall curve would provide a more complete assessment.
 
-The supplementary feature experiments were evaluated using approximately 10,000 applicants and three-fold cross-validation to reduce computational requirements. Therefore, the results may not fully represent performance across the entire training population. More extensive validation would help assess the stability of the improvements.
+The initial supplementary feature experiments used approximately 10,000 applicants and three-fold cross-validation to reduce computational requirements. The final comparison between the 33-predictor and 36-predictor models used the full training dataset of 307,511 applicants with five-fold stratified cross-validation, providing a more comprehensive evaluation.
 
-Another limitation is the use of Logistic Regression, which may not capture complex nonlinear relationships between financial variables. More advanced models, such as gradient boosting, could potentially improve predictive performance.
+Another limitation is the use of Logistic Regression, which may not fully capture nonlinear relationships between financial variables. More advanced approaches, such as gradient boosting, could potentially improve predictive performance.
 
 Finally, because this model concerns lending decisions, predictive performance alone would not be sufficient for real-world deployment. Fairness, interpretability, probability calibration, and the consequences of incorrect predictions would also need to be evaluated.
 
@@ -1496,8 +1602,12 @@ Finally, because this model concerns lending decisions, predictive performance a
 
 This project explored how predictive modeling can help Home Credit identify applicants who are more likely to experience payment difficulties. Logistic Regression, Decision Tree, and Random Forest models were compared using cross-validation and ROC AUC. Logistic Regression performed best among the initial models tested.
 
-The most significant improvement came from incorporating historical financial information. By adding features from Bureau, Previous Applications, Installment Payments, POS/CASH Balance, and Credit Card Balance datasets, the enhanced Logistic Regression model achieved a public Kaggle ROC AUC of 0.69607 and a private ROC AUC of 0.68375, compared with 0.62268 and 0.60727 for the initial model.
+The initial six-predictor Logistic Regression model achieved a public Kaggle ROC AUC of 0.62268 and a private ROC AUC of 0.60727. Adding information from five supplementary datasets—Bureau, Previous Applications, Installment Payments, POS/CASH Balance, and Credit Card Balance—improved performance to 0.69607 (public) and 0.68375 (private).
 
-These results suggest that an applicant's previous borrowing and repayment behavior provides valuable information beyond the initial loan application. From a business perspective, improved risk predictions could help lenders make more informed credit decisions, although additional validation would be necessary before using the model in practice.
+After re-evaluating predictor selection, three additional variables—EXT_SOURCE_1, EXT_SOURCE_2, and EXT_SOURCE_3—were incorporated into the enhanced model. The revised 36-predictor Logistic Regression model achieved a mean five-fold cross-validation ROC AUC of **0.748**, a public Kaggle ROC AUC of **0.74751**, and a private Kaggle ROC AUC of **0.73212**.
 
-Future improvements could include testing gradient boosting models, developing additional features, evaluating precision and recall, and performing more extensive cross-validation. These steps could help improve predictive performance and assess the model's reliability.
+These results demonstrate that selecting informative predictors can substantially improve predictive performance. In particular, the external credit score variables provided valuable information beyond the original application and historical credit features.
+
+From a business perspective, improved risk predictions could help lenders identify higher-risk applicants and support more informed lending decisions. However, additional evaluation of fairness, interpretability, and model reliability would be necessary before real-world implementation.
+
+Future improvements could include testing gradient boosting models, engineering additional predictors, and evaluating precision, recall, and probability calibration.

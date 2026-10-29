@@ -4,6 +4,13 @@ Data/
 # Kaggle submission and model artifacts
 kaggle_submission.csv
 kaggle_submission_enhanced.csv
+kaggle_submission_ext_source.csv
 *.rds
 *.RData
 *.Rhistory
+
+# Reproducible model-card artifacts (generated locally)
+artifacts/
+
+# Local backup, not part of the project deliverables
+modeling_backup.qmd

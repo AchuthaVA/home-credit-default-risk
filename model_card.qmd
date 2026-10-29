@@ -1,0 +1,406 @@
+---
+title: "Home Credit Default Risk Model Card"
+subtitle: "Final 36-Predictor Logistic Regression"
+author: "IS 6812"
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    code-fold: true
+    embed-resources: true
+    theme: cosmo
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+
+required_files <- c(
+  "artifacts/enhanced_model_36.rds",
+  "artifacts/enhanced_model_36_oof_predictions.csv",
+  "artifacts/model_card_threshold_metrics.csv",
+  "artifacts/model_card_financial_threshold_metrics.csv",
+  "artifacts/model_card_financial_sensitivity_optima.csv",
+  "artifacts/model_card_shap_global_importance.csv",
+  "artifacts/model_card_shap_local_top_contributions.csv",
+  "artifacts/model_card_shap_verification.csv",
+  "artifacts/model_card_shap_global_importance.png",
+  "artifacts/model_card_shap_summary.png",
+  "artifacts/model_card_shap_waterfall.png",
+  "artifacts/model_card_adverse_action_feature_mapping.csv",
+  "artifacts/model_card_adverse_action_example_contributions.csv",
+  "artifacts/model_card_adverse_action_proposed_reasons.csv",
+  "artifacts/model_card_adverse_action_flagged_contributions.csv",
+  "artifacts/model_card_adverse_action_verification.csv",
+  "artifacts/model_card_fairness_group_metrics.csv",
+  "artifacts/model_card_fairness_pairwise_approval_gaps.csv",
+  "artifacts/model_card_fairness_verification.csv",
+  "artifacts/model_card_fairness_approval_rates.png",
+  "artifacts/model_card_fairness_error_rates.png"
+)
+missing_files <- required_files[!file.exists(required_files)]
+if (length(missing_files) > 0) {
+  stop("Required Model Card artifacts are missing: ",
+       paste(missing_files, collapse = ", "))
+}
+
+artifact <- readRDS("artifacts/enhanced_model_36.rds")
+threshold_metrics <- readr::read_csv(
+  "artifacts/model_card_threshold_metrics.csv", show_col_types = FALSE
+)
+financial_metrics <- readr::read_csv(
+  "artifacts/model_card_financial_threshold_metrics.csv", show_col_types = FALSE
+)
+sensitivity_optima <- readr::read_csv(
+  "artifacts/model_card_financial_sensitivity_optima.csv", show_col_types = FALSE
+)
+shap_importance <- readr::read_csv(
+  "artifacts/model_card_shap_global_importance.csv", show_col_types = FALSE
+)
+shap_local <- readr::read_csv(
+  "artifacts/model_card_shap_local_top_contributions.csv", show_col_types = FALSE
+)
+shap_verification <- readr::read_csv(
+  "artifacts/model_card_shap_verification.csv", show_col_types = FALSE
+)
+adverse_mapping <- readr::read_csv(
+  "artifacts/model_card_adverse_action_feature_mapping.csv", show_col_types = FALSE
+)
+adverse_example <- readr::read_csv(
+  "artifacts/model_card_adverse_action_example_contributions.csv", show_col_types = FALSE
+)
+adverse_reasons <- readr::read_csv(
+  "artifacts/model_card_adverse_action_proposed_reasons.csv", show_col_types = FALSE
+)
+adverse_flagged <- readr::read_csv(
+  "artifacts/model_card_adverse_action_flagged_contributions.csv", show_col_types = FALSE
+)
+adverse_verification <- readr::read_csv(
+  "artifacts/model_card_adverse_action_verification.csv", show_col_types = FALSE
+)
+fairness_metrics <- readr::read_csv(
+  "artifacts/model_card_fairness_group_metrics.csv", show_col_types = FALSE
+)
+fairness_verification <- readr::read_csv(
+  "artifacts/model_card_fairness_verification.csv", show_col_types = FALSE
+)
+
+threshold_012 <- threshold_metrics |>
+  filter(round(threshold, 2) == 0.12)
+financial_012 <- financial_metrics |>
+  filter(round(threshold, 2) == 0.12)
+stopifnot(nrow(threshold_012) == 1, nrow(financial_012) == 1)
+
+percent <- function(x, digits = 1) scales::percent(x, accuracy = 10^-digits)
+number <- function(x, digits = 0) formatC(x, format = "f", digits = digits, big.mark = ",")
+pp <- function(x, digits = 1) paste0(formatC(100 * x, format = "f", digits = digits), " percentage points")
+tbl <- function(x, digits = 3) knitr::kable(x, format = "html", digits = digits)
+rate_display <- function(x, digits = 1) {
+  ifelse(is.na(x), "Not defined", percent(x, digits))
+}
+
+runtime_metadata <- tibble::tibble(
+  Item = c("R version", "Platform", names(artifact$runtime$package_versions)),
+  Value = c(
+    artifact$runtime$r_version,
+    artifact$runtime$platform,
+    unname(artifact$runtime$package_versions)
+  )
+)
+
+top_shap <- shap_importance |>
+  slice_head(n = 10) |>
+  transmute(
+    Predictor = predictor,
+    `Mean absolute SHAP (log-odds)` = sprintf("%.3f", mean_absolute_shap_log_odds)
+  )
+
+example_risk <- adverse_verification$predicted_risk[[1]]
+example_id <- adverse_verification$SK_ID_CURR[[1]]
+
+fairness_display <- fairness_metrics |>
+  transmute(
+    Demographic = demographic_variable,
+    Group = group,
+    Status = group_status,
+    N = number(total_applicants),
+    `Approval rate` = rate_display(approval_rate),
+    `TARGET = 1 rate` = rate_display(observed_target_1_rate),
+    Precision = rate_display(precision_target_1),
+    Recall = rate_display(recall_target_1),
+    `False-positive decline rate` = rate_display(false_positive_rate_decline),
+    `False-negative approval rate` = rate_display(false_negative_rate_approval),
+    `Approval-rate ratio` = rate_display(approval_rate_ratio_to_highest)
+  )
+
+gender_metrics <- fairness_metrics |>
+  filter(demographic_variable == "CODE_GENDER")
+education_metrics <- fairness_metrics |>
+  filter(demographic_variable == "NAME_EDUCATION_TYPE")
+gender_standard <- gender_metrics |>
+  filter(group %in% c("F", "M"))
+education_standard <- education_metrics |>
+  filter(group != "Academic degree")
+gender_approval_gap <- diff(range(gender_standard$approval_rate))
+gender_fpr_gap <- diff(range(gender_standard$false_positive_rate_decline))
+gender_fnr_gap <- diff(range(gender_standard$false_negative_rate_approval))
+education_approval_gap <- diff(range(education_metrics$approval_rate))
+education_fpr_gap <- diff(range(education_metrics$false_positive_rate_decline))
+education_fnr_gap_standard <- diff(range(education_standard$false_negative_rate_approval))
+
+sensitivity_display <- sensitivity_optima |>
+  mutate(
+    scenario = paste0(
+      "Repayment ", percent(repayment_contribution, 2),
+      "; recovery ", percent(recovery_rate, 1)
+    ),
+    basis = recode(
+      exposure_basis,
+      standardized_exposure_contribution = "Standardized exposure",
+      credit_exposure_proxy_contribution = "AMT_CREDIT exposure proxy"
+    )
+  ) |>
+  arrange(repayment_contribution, recovery_rate)
+
+standardized_sensitivity_display <- sensitivity_display |>
+  filter(basis == "Standardized exposure") |>
+  transmute(
+    Scenario = scenario,
+    `Optimal threshold` = sprintf("%.2f", threshold),
+    `Approval rate` = rate_display(approval_rate),
+    `Approved TARGET = 0` = number(approved_target_0_count),
+    `Approved TARGET = 1` = number(approved_target_1_count),
+    `Estimated contribution` = number(estimated_contribution, 2),
+    Unit = "Standardized exposure units"
+  )
+
+credit_proxy_sensitivity_display <- sensitivity_display |>
+  filter(basis == "AMT_CREDIT exposure proxy") |>
+  transmute(
+    Scenario = scenario,
+    `Optimal threshold` = sprintf("%.2f", threshold),
+    `Approval rate` = rate_display(approval_rate),
+    `Approved TARGET = 0` = number(approved_target_0_count),
+    `Approved TARGET = 1` = number(approved_target_1_count),
+    `Estimated contribution` = number(estimated_contribution, 2),
+    Unit = "AMT_CREDIT exposure-proxy units"
+  )
+```
+
+# Model Details
+
+This Model Card documents the final Home Credit Default Risk model: a 36-predictor binomial logistic regression stored in `artifacts/enhanced_model_36.rds`. It was fit on **307,511** application records to estimate the risk of recorded payment difficulties.
+
+The target is not confirmed permanent loss. `TARGET = 1` denotes a client with payment difficulties—late payment beyond an undisclosed threshold on at least one of the first installments—while `TARGET = 0` includes all other cases.
+
+The predictor set combines:
+
+- six application and affordability variables, including age, income, requested credit, annuity, and two ratios;
+- 27 applicant-level historical credit and repayment features from Bureau, previous applications, installments, POS/CASH, and credit-card data, including five missing-history indicators; and
+- three opaque external variables: `EXT_SOURCE_1`, `EXT_SOURCE_2`, and `EXT_SOURCE_3`.
+
+Application preparation converts age into years, creates the annuity-to-income and credit-to-goods ratios, treats the special employment value as missing, and applies a training-derived median to `COMMONAREA_AVG`. Historical files are aggregated to one row per applicant. For the final 36 predictors, missing or non-finite values are replaced with training medians stored in the artifact.
+
+The original workflow used five-fold stratified cross-validation. The artifact also records the runtime environment used when the model was saved.
+
+```{r}
+tbl(runtime_metadata, digits = 0)
+```
+
+# Intended Use
+
+The model is intended as a decision-support input for lending and credit-risk teams evaluating an applicant's estimated likelihood of recorded payment difficulties. Appropriate users include credit-risk analysts, underwriting managers, and model-risk/governance stakeholders.
+
+The model is not intended for fully automated lending decisions, production deployment without independent validation, legally binding adverse-action notices, or use without data-governance, compliance, fairness, and model-risk approval. It should support—not replace—documented underwriting policy and human review.
+
+# Performance
+
+The original notebook reports a mean five-fold ROC AUC of **0.7481** for the final 36-predictor model. Separately, pooling all 307,511 out-of-fold predictions produces a ROC AUC of **0.748113**.
+
+These are different statistics: mean fold AUC averages five validation-fold AUCs, whereas pooled OOF AUC calculates one AUC after combining every held-out prediction. Their close values are reassuring, but they should not be treated as identical.
+
+The original notebook documents Kaggle ROC AUC of **0.74751** on the public leaderboard and **0.73212** on the private leaderboard. These are documented competition results; the local submission files available in this project do not independently verify that the 36-predictor submission produced those values.
+
+At the provisional 0.12 threshold, the OOF operating point is:
+
+```{r}
+performance_012 <- threshold_012 |>
+  transmute(
+    `Approval rate` = rate_display(approved_percentage / 100),
+    Approvals = number(approved_count),
+    Declines = number(declined_target_0 + declined_target_1),
+    `Approved TARGET = 0` = number(approved_target_0),
+    `Approved TARGET = 1` = number(approved_target_1),
+    `Declined TARGET = 0` = number(declined_target_0),
+    `Declined TARGET = 1` = number(declined_target_1),
+    `Precision for TARGET = 1` = rate_display(precision_target_1),
+    `Recall for TARGET = 1` = rate_display(recall_target_1)
+  )
+tbl(performance_012)
+```
+
+For this operating point, a positive prediction means an illustrative **decline**: predicted risk at or above 0.12. Precision is the percentage of declined applicants later recorded with `TARGET = 1`; recall is the percentage of all applicants with `TARGET = 1` who were declined.
+
+Calibration has not been assessed. The reported discrimination and threshold metrics therefore do not establish that predicted probabilities equal observed payment-difficulty frequencies.
+
+# Decision Threshold
+
+An applicant is approved when predicted risk is **strictly below 0.12**; risk at or above 0.12 is an illustrative decline. This rule yields **`r number(threshold_012$approved_count)` approvals** and **`r number(threshold_012$declined_target_0 + threshold_012$declined_target_1)` declines**, an approval rate of **`r percent(threshold_012$approved_percentage / 100)`**.
+
+The 0.12 cutoff was the highest estimated base-case contribution within the tested 0.01–0.50 grid under both equal standardized exposure and `AMT_CREDIT` exposure-proxy weighting. It is illustrative, not a deployment recommendation.
+
+At 0.12, the saved base-case financial analysis reports:
+
+```{r}
+financial_012_display <- financial_012 |>
+  transmute(
+    `Repayment contribution assumption` = rate_display(repayment_contribution, 1),
+    `Recovery-rate assumption` = rate_display(recovery_rate, 1),
+    `Loss-severity assumption` = rate_display(loss_severity, 1),
+    `Standardized-exposure contribution` = number(standardized_exposure_contribution, 2),
+    `AMT_CREDIT exposure-proxy contribution` = number(credit_exposure_proxy_contribution, 2)
+  )
+tbl(financial_012_display)
+```
+
+Standardized-exposure contribution assigns one standardized exposure unit per approved applicant; it is not a currency amount. `AMT_CREDIT` exposure-proxy contribution weights the same scenario by requested-credit amounts; it is not realized profit, exposure at default, or cash flow.
+
+The 11.88% figure is a measured descriptive statistic: across 307,233 valid applications, the median of `(AMT_CREDIT - AMT_GOODS_PRICE) / AMT_GOODS_PRICE` was 11.88%. It is a financing uplift relative to goods price, not verified net profit. The base-case repayment contribution is the rounded illustrative assumption **+0.119** per standardized exposure unit for `TARGET = 0`; the sensitivity grid instead uses **+0.1188** as its central repayment scenario.
+
+The 13.5% recovery rate and corresponding 86.5% loss severity are unverified illustrative assumptions for this Home Credit population. No scenario below should be read as realized lender profit.
+
+The two tables retain all nine repayment/recovery scenarios. The contributions are reported in their stated units: one standardized unit per approved applicant in the first table, and requested-credit-weighted `AMT_CREDIT` exposure-proxy units in the second.
+
+```{r}
+tbl(standardized_sensitivity_display)
+```
+
+```{r}
+tbl(credit_proxy_sensitivity_display)
+```
+
+# Explainability
+
+The explainability analysis uses the saved final model and exact marginal/interventional SHAP values on the logistic model's **log-odds** scale. With each background value defined as the mean of that fully preprocessed predictor across all 307,511 training applicants, each contribution is coefficient × (applicant value − background mean). The baseline is `r sprintf("%.6f", shap_verification$baseline_log_odds)` log-odds.
+
+This additive decomposition reconstructs the model output to numerical tolerance, but it is marginal rather than conditional: correlated predictors can receive attributions that differ from a conditional explanation. Individual SHAP contributions are log-odds contributions, not additive probability-point changes.
+
+```{r}
+tbl(top_shap)
+```
+
+The top-10 table is the primary business-facing interpretation. The complete 36-feature summary plot below is retained as technical detail.
+
+```{r}
+knitr::include_graphics("artifacts/model_card_shap_global_importance.png")
+```
+
+```{r}
+knitr::include_graphics("artifacts/model_card_shap_summary.png")
+```
+
+The documented local SHAP example has a predicted risk of **`r percent(shap_local$predicted_probability[[1]], 3)`**. Its waterfall shows how the background and feature contributions combine on the log-odds scale.
+
+```{r}
+knitr::include_graphics("artifacts/model_card_shap_waterfall.png")
+```
+
+The external-source variables are among the most influential features, but their meanings and provenance are not documented in the project. They therefore require additional documentation, data-governance review, and proxy-risk assessment before operational interpretation.
+
+# Adverse Action Mapping
+
+The project contains a 36-feature proposed mapping table that records verified technical definitions, potential plain-language explanations, category, and documentation/compliance limitations. It is a planning aid—not a legally approved adverse-action notice.
+
+The illustrative declined applicant is `r example_id`, with final-model predicted risk of **`r percent(example_risk, 3)`** at the 0.12 threshold. This is a final-model explanatory example, not an out-of-fold performance observation. Its actual historical `TARGET` is `r adverse_verification$TARGET[[1]]`.
+
+The strongest positive contributors with potentially interpretable, proposed reasons are shown below. These remain subject to source validation, accuracy/dispute procedures, policy review, and compliance approval.
+
+```{r}
+proposed_reason_display <- adverse_reasons |>
+  arrange(desc(shap_log_odds_contribution)) |>
+  select(
+    technical_feature, proposed_plain_language,
+    shap_log_odds_contribution, limitations_or_documentation
+  ) |>
+  mutate(shap_log_odds_contribution = sprintf("%.3f", shap_log_odds_contribution))
+tbl(proposed_reason_display)
+```
+
+The following positive contributors are explicitly not proposed as customer-facing reasons:
+
+```{r}
+flagged_reason_display <- adverse_flagged |>
+  arrange(desc(shap_log_odds_contribution)) |>
+  select(
+    technical_feature, feature_category,
+    shap_log_odds_contribution, customer_reason_status,
+    limitations_or_documentation
+  ) |>
+  mutate(shap_log_odds_contribution = sprintf("%.3f", shap_log_odds_contribution))
+tbl(flagged_reason_display)
+```
+
+SHAP identifies model behavior; it does not independently establish causation, legal compliance, or the adequacy of an adverse-action reason. In particular, opaque external scores and missing-data indicators must not be presented as definitive customer reasons without verified provenance and governance approval.
+
+# Fairness
+
+The following results are descriptive OOF analyses at the same 0.12 threshold. Gender and education are retained for audit but are not direct predictors in the final model. Their exclusion does not eliminate the possibility that other inputs act as proxies.
+
+```{r}
+gender_display <- fairness_display |>
+  filter(Demographic == "CODE_GENDER")
+education_display <- fairness_display |>
+  filter(Demographic == "NAME_EDUCATION_TYPE")
+tbl(gender_display)
+tbl(education_display)
+```
+
+For reportable `F` and `M` groups, the approval-rate gap is `r pp(gender_approval_gap)`, the false-positive decline-rate gap is `r pp(gender_fpr_gap)`, and the false-negative approval-rate gap is `r pp(gender_fnr_gap)`. `XNA` (N=4) is retained but is too small and unusual for stable interpretation.
+
+Across education categories, the maximum approval-rate gap is `r pp(education_approval_gap)` and the maximum false-positive decline-rate gap is `r pp(education_fpr_gap)`. The Academic-degree group (N=164) is flagged as small. Excluding it, the false-negative approval-rate gap among the remaining groups is `r pp(education_fnr_gap_standard)`.
+
+Approval-rate ratios use the highest-approval group within each demographic variable as the denominator. The conventional 80% heuristic is a screening tool for descriptive review—not proof of fairness, discrimination, or legal compliance.
+
+```{r}
+knitr::include_graphics("artifacts/model_card_fairness_approval_rates.png")
+```
+
+The visually highlighted `XNA` and Academic-degree groups have small samples (N=4 and N=164, respectively); their displayed rates should not be interpreted as stable disparity estimates.
+
+```{r}
+knitr::include_graphics("artifacts/model_card_fairness_error_rates.png")
+```
+
+The error-rate chart shows group-specific false-positive and false-negative rates under the decline-positive classification: “incorrectly declined” means a decline for `TARGET = 0`, while “approved with payment difficulty” means an approval for `TARGET = 1`.
+
+This analysis does not assess group calibration, confidence intervals, intersectional subgroups, temporal stability, external representativeness, or causal pathways. Historical features, opaque scores, and missing-data indicators may create proxy effects.
+
+# Limitations and Risks
+
+- **Target limitation:** payment difficulties are not equivalent to charge-off, defaulted principal, or permanent loss.
+- **Financial limitation:** the 11.88% financing uplift is not verified net profit; repayment contribution, recovery, and loss-severity assumptions are illustrative.
+- **Kaggle provenance:** the reported 36-predictor public/private Kaggle AUC values are documented in `modeling.qmd`, but available local submission files do not independently verify the 36-predictor result.
+- **Probability reliability:** calibration, confidence intervals, and external validation have not been assessed.
+- **Timing and leakage risk:** historical aggregates do not prove that every record was available when the lending decision was made.
+- **Feature opacity:** `EXT_SOURCE_*` definitions, provenance, permissible use, and dispute procedures are not documented.
+- **Fairness and governance:** descriptive group differences do not prove or rule out discrimination; proxy effects, small groups, and representativeness require further study.
+- **Operational readiness:** this model is not deployment-ready. Production use would require independent validation, monitoring, data-quality controls, model-risk governance, legal/compliance review, and approved customer communications.
+
+# Executive Summary
+
+This Model Card documents a 36-predictor logistic regression trained on 307,511 Home Credit applications to estimate recorded payment-difficulty risk. The model combines application information, aggregated repayment/credit history, and three opaque external-source variables.
+
+Discrimination is moderate: original five-fold mean ROC AUC was 0.7481, and pooled OOF ROC AUC was 0.748113. The documented Kaggle public/private AUC values were 0.74751/0.73212, subject to the stated local-submission provenance caveat.
+
+Using an illustrative 12% risk threshold, 247,486 applicants (80.5%) would be approved and 60,025 declined in OOF analysis. That threshold maximized the tested illustrative base-case financial contribution under both standardized and `AMT_CREDIT` exposure-proxy approaches. These outputs are scenarios—not realized profit forecasts—and depend on unverified repayment, recovery, and loss-severity assumptions.
+
+The model is explainable on its log-odds scale, but its strongest predictors include opaque external scores that are unsuitable for direct customer explanations without further documentation. The proposed adverse-action mappings and fairness comparisons are useful governance inputs, not legal determinations.
+
+Recommended next steps are to validate data timing and external-score provenance, assess calibration and external performance, strengthen financial assumptions with appropriate portfolio evidence, evaluate fairness with uncertainty and intersectional analyses, and complete model-risk and legal/compliance review before any production use.
