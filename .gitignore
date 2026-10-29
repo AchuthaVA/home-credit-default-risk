@@ -1,6 +1,9 @@
 Data/
 .DS_Store
 
+# Compiled reports are local submission/viewing deliverables, not source files
+*.html
+
 # Kaggle submission and model artifacts
 kaggle_submission.csv
 kaggle_submission_enhanced.csv
