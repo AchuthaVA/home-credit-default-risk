@@ -49,6 +49,22 @@ Before any deployment, the analysis recommends:
 3. continued fairness, proxy-risk, and data-timing assessment; and
 4. a supervised pilot with model-risk, legal, compliance, and underwriting governance.
 
+## Challenges Encountered
+
+- **Incomplete information across source tables:** Application and historical-credit files contain substantial missingness. I retained missing-history indicators where appropriate and used training-derived imputation so missingness was visible rather than silently discarded.
+- **Applicant-level feature construction:** Historical records are stored at a different grain from applications. I aggregated them to one row per applicant and checked joins for duplicated or lost applicant records.
+- **Leakage-safe evaluation:** Preprocessing statistics can unintentionally incorporate validation information. I learned fitted preparation and imputation parameters within each training fold, then used out-of-fold predictions for threshold, financial, and fairness analyses.
+- **Opaque and potentially proxy-related inputs:** The definitions of `EXT_SOURCE_*` variables are not available in the project data. I treated their contributions as model inputs requiring provenance review, not as automatically suitable customer-facing denial reasons.
+- **Incomplete financial outcomes:** The data do not provide verified lender profit, recovery, or loss-severity outcomes. I used clearly labeled illustrative sensitivity scenarios and retained the limitation that they are not realized-profit estimates.
+
+## Lessons Learned
+
+- I learned that combining well-governed application, repayment, and credit-history features can improve risk ranking, but the added information must be joined and timed carefully.
+- I learned that reliable performance and decision analysis require stratified cross-validation and out-of-fold predictions rather than relying on fitted training predictions.
+- I learned that ROC AUC measures ranking discrimination; it does not by itself establish calibrated probabilities, financial benefit, or deployment readiness.
+- I learned that SHAP explanations, proposed adverse-action mappings, and fairness evaluation reveal governance questions that model performance alone cannot answer.
+- I learned that analytics creates stronger business value when technical findings are connected to decision trade-offs, explicit assumptions, validation needs, and actionable recommendations.
+
 ## Responsible AI and Model Governance
 
 The project treats performance as only one component of responsible lending analytics.
