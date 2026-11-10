@@ -120,14 +120,6 @@ Rscript model_card_fairness_analysis.R
 
 Then render `model_card.qmd` with Quarto. The generated `artifacts/` directory, compiled HTML reports, Kaggle submission CSVs, and raw `Data/` files are intentionally Git-ignored. A fresh clone therefore cannot render the Model Card until the original data are available and the required artifacts have been regenerated.
 
-## Interview Talking Points
-
-- I converted multiple historical credit and repayment sources into applicant-level features, then validated one-row-per-applicant joins before modeling.
-- I improved the final logistic model to a mean five-fold ROC AUC of 0.7481 by combining application, repayment-history, and credit-history information with three external-score variables.
-- I used out-of-fold predictions rather than fitted training predictions to evaluate a 12% illustrative lending-risk threshold and its approval-volume trade-off.
-- I used exact linear-model SHAP values to explain risk contributions on the log-odds scale and separated proposed customer-facing reasons from opaque or unsuitable contributors.
-- I treated fairness, data timing, calibration, recovery assumptions, and feature opacity as governance questions—not afterthoughts to model performance.
-
 ## Limitations
 
 This model is not deployment-ready. It requires independent validation, probability calibration, portfolio-specific financial assumptions, monitoring, and legal/compliance approval before any production lending use.
