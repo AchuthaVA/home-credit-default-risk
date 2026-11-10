@@ -17,6 +17,12 @@ Home Credit provides consumer financing to customers who may have limited or no 
 
 The purpose of this exploratory data analysis is to understand the application data, identify data-quality issues that may affect later modeling, and investigate applicant characteristics that may be associated with payment difficulty.
 
+## Business Summary
+
+This analysis establishes the evidence needed to build a defensible payment-difficulty model. It confirms that payment difficulty is relatively uncommon (about 8.1% of training applications), identifies substantial missingness in several variables, and documents unusual values such as the special `DAYS_EMPLOYED` value. It also finds differences in age, income, and requested credit between applicants with and without recorded payment difficulties, while recognizing that these associations do not establish causation.
+
+The EDA informed the predictive workflow by validating the one-application-per-applicant grain and the training/test structure, identifying data-cleaning decisions, preserving informative missingness, and motivating engineered affordability and age features. These findings provide the business and data-quality context for the modeling work that follows.
+
 ## EDA Questions
 
 The analysis will address the following questions:

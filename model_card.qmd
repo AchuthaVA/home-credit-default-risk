@@ -1,7 +1,7 @@
 ---
 title: "Home Credit Default Risk Model Card"
 subtitle: "Final 36-Predictor Logistic Regression"
-author: "IS 6812"
+author: "Achuthasai Valluru"
 format:
   html:
     toc: true

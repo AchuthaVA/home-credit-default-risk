@@ -22,6 +22,20 @@ This modeling analysis will establish a benchmark, compare several classificatio
 
 ROC AUC will be the primary evaluation metric because accuracy alone can be misleading when the target classes are imbalanced.
 
+## Executive Overview
+
+This analysis evaluates how applicant, affordability, and historical credit/repayment information can support lending decisions by ranking the risk of recorded payment difficulties. It compares several classification approaches, then develops a final 36-predictor binomial logistic-regression model that combines application features, aggregated historical information, and three external-score variables.
+
+The final model achieved a mean five-fold ROC AUC of **0.7481** on 307,511 training applications. This level of discrimination can help lending teams distinguish relatively higher- from lower-risk applications for review, but it does not by itself establish an approval policy, calibrated probabilities, or production readiness.
+
+## Navigation Guide
+
+- [Data Preparation](#data-preparation) explains the reusable cleaning and feature-preparation workflow.
+- [Modeling Process](#modeling-process) contains benchmark, logistic-regression, decision-tree, random-forest, class-imbalance, and tuning experiments.
+- [Supplementary Data Experiment: Bureau Credit History](#supplementary-data-experiment-bureau-credit-history) follows the staged integration of historical credit and repayment data.
+- [Final Enhanced Model](#final-enhanced-model) documents the final 36-predictor specification and the external-credit-score comparison.
+- [Cross-Validation Experiment Summary](#cross-validation-experiment-summary), [Kaggle Evaluation Results](#kaggle-evaluation-results), [Model Limitations](#model-limitations), and [Conclusion](#conclusion) summarize validation, reported competition performance, and business implications.
+
 # Data Preparation
 
 The modeling workflow uses the existing `data_preparation.R` script developed from the EDA findings.

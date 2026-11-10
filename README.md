@@ -1,82 +1,117 @@
-# Home Credit Default Risk
+# Home Credit Default Risk — Predictive Analytics and Lending Decision Support
 
-## IS 6812 Model Card project
+**Individual analytics portfolio by Achuthasai Valluru**
 
-This project develops and documents a model that estimates an applicant's risk of recorded payment difficulties for the Home Credit Default Risk dataset. It is an academic decision-support analysis, not a production lending system. In this dataset, `TARGET = 1` records payment difficulties; it is not a confirmed permanent loan loss.
+Home Credit serves applicants who may have limited traditional credit history. The business challenge is to identify elevated payment-difficulty risk without unnecessarily declining applicants likely to repay. This project develops an interpretable lending-risk decision-support model and documents the business, financial, explainability, and governance questions that must be addressed before operational use.
 
-The final model is a binomial logistic regression with 36 predictors. It was fit on 307,511 training applicants and combines application and affordability information, aggregated historical credit and repayment information, and three opaque `EXT_SOURCE` variables. The final workflow is documented in [modeling.qmd](modeling.qmd).
+The final 36-predictor logistic-regression model achieved a mean five-fold ROC AUC of **0.7481**. The analysis shows how application data, historical repayment and credit information, and carefully governed model outputs can support more informed loan-review decisions. It is an academic analysis—not a production lending system.
 
-## Model performance
+## My Role and Individual Contributions
 
-The original modeling workflow reports a mean five-fold stratified cross-validation ROC AUC of **0.7481**. Separately, pooling all 307,511 out-of-fold (OOF) predictions produced ROC AUC **0.748113**. These are different calculations and should not be treated as identical statistics.
+This repository documents my individual analytics work in R. I performed:
 
-The final-model results documented in `modeling.qmd` report Kaggle ROC AUC of **0.74751** on the public leaderboard and **0.73212** on the private leaderboard. The local submission files available in the project do not independently verify that the 36-predictor submission produced those scores; they are therefore documented competition results with a provenance caveat.
+- exploratory analysis of applicant characteristics, missingness, data quality, and payment-difficulty patterns;
+- reusable preprocessing and applicant-level aggregation of historical credit and repayment data;
+- feature engineering, logistic-regression development, model comparison, and stratified cross-validation;
+- out-of-fold threshold analysis and illustrative financial sensitivity scenarios;
+- exact log-odds SHAP explainability for the final logistic model;
+- proposed feature-to-reason mappings for adverse-action review; and
+- descriptive gender and education fairness analyses.
 
-## Model Card
+This repository is my individual portfolio, not a reproduction of a separate group presentation or group-submitted deliverable. It documents the work and results maintained in this repository; it does not claim ownership of work outside that scope.
 
-[model_card.qmd](model_card.qmd) is the reproducible Quarto source for the final nine-section Model Card:
+## Key Results
 
-1. Model Details
-2. Intended Use
-3. Performance
-4. Decision Threshold
-5. Explainability
-6. Adverse Action Mapping
-7. Fairness
-8. Limitations and Risks
-9. Executive Summary
+| Result | Evidence |
+|---|---|
+| Training population | 307,511 historical Home Credit applications |
+| Final model | 36-predictor binomial logistic regression |
+| Mean five-fold CV ROC AUC | **0.7481** |
+| Pooled out-of-fold ROC AUC | **0.748113** |
+| Documented Kaggle public / private ROC AUC | **0.74751 / 0.73212** |
+| Illustrative lending-risk threshold | Approve when predicted risk is strictly below **12%** |
+| Illustrative approval rate at 12% | Approximately **80.5%** |
 
-The Model Card uses an illustrative approval rule: approve an applicant when predicted risk is strictly below **0.12**. This threshold is a retrospective scenario based on unverified financial assumptions; it is not a deployment recommendation.
+The public and private Kaggle AUC values are documented results from the original competition evaluation. Available local submission CSV files do not independently verify that the recorded scores came from the final 36-predictor submission.
 
-The Model Card includes:
+The 12% threshold is an illustrative retrospective decision policy selected from a tested grid under stated financial assumptions. It is **not** an operationally validated underwriting cutoff or a recommendation for automated lending.
 
-- OOF threshold-performance analysis;
-- illustrative financial sensitivity analysis using standardized exposure units and `AMT_CREDIT` exposure-proxy units, not realized profit;
-- exact linear-model SHAP explanations on the log-odds scale;
-- proposed adverse-action mappings, explicitly not legally approved notices; and
-- descriptive fairness analyses for reported gender and education groups using OOF predictions.
+## Business Value and Recommendations
 
-[model_card.html](model_card.html) is the rendered, self-contained version of the Model Card. Open that file directly in a modern web browser to view the report, tables, and embedded figures; rendering R or downloading the ignored artifacts is not required for viewing it.
+The model produces a risk ranking that could help credit-risk and underwriting teams prioritize review, compare decision policies, and make the trade-off between lending volume and observed payment difficulties explicit. At lower risk thresholds, more applicants are declined; at higher thresholds, more applicants are approved, including more applicants later recorded with payment difficulties.
 
-## Repository files
+The financial analysis evaluates sensitivity scenarios using standardized exposure units and `AMT_CREDIT` as a requested-credit exposure proxy. It does **not** claim realized lender profit, savings, loss severity, or recovery outcomes. The scenarios are intended to make financial assumptions visible and test how threshold conclusions change when those assumptions change.
 
-- `data_preparation.R` — reusable application preparation and historical-data aggregation functions.
-- `eda.qmd` — exploratory data analysis notebook.
-- `modeling.qmd` / `modeling.html` — modeling workflow and rendered report.
-- `model_card_preparation.R` — recreates the final model artifact and five-fold OOF predictions without rerunning earlier benchmark experiments.
-- `model_card_threshold_analysis.R` — produces threshold metrics from OOF predictions.
-- `model_card_financial_analysis.R` — produces illustrative financial threshold and sensitivity outputs.
-- `model_card_shap_analysis.R` — produces exact log-odds SHAP outputs and figures from the saved model.
-- `model_card_adverse_action_analysis.R` — produces proposed feature-to-reason mappings and an illustrative declined-applicant explanation.
-- `model_card_fairness_analysis.R` — produces descriptive OOF fairness metrics and figures.
-- `model_card.qmd` / `model_card.html` — Model Card source and self-contained rendered deliverable.
+Before any deployment, the analysis recommends:
 
-## Reproducing Model Card artifacts
+1. probability-calibration and external-performance validation;
+2. portfolio-specific cost, recovery, and loss-severity validation;
+3. continued fairness, proxy-risk, and data-timing assessment; and
+4. a supervised pilot with model-risk, legal, compliance, and underwriting governance.
 
-The raw `Data/` directory and generated `artifacts/` directory are intentionally Git-ignored. Consequently, a fresh clone can open `model_card.html`, but cannot render `model_card.qmd` until the original data and locally generated artifacts are available.
+## Responsible AI and Model Governance
 
-The scripts directly verify the following inputs and dependencies:
+The project treats performance as only one component of responsible lending analytics.
 
-- `data_preparation.R` and all Model Card scripts use the R `tidyverse` package.
-- `model_card_preparation.R` additionally uses `rsample` for five-fold stratified OOF validation.
-- The preparation, SHAP, and adverse-action scripts require the original application-training and historical Home Credit CSV files under `Data/`; the preparation script writes `artifacts/enhanced_model_36.rds` and `artifacts/enhanced_model_36_oof_predictions.csv`.
-- The threshold, financial, and fairness scripts use the OOF predictions. The financial script also reads `Data/application_train.csv` for `AMT_CREDIT`.
-- The SHAP and adverse-action scripts use the saved model artifact, `data_preparation.R`, and the original historical files. Both verify that the current `data_preparation.R` matches the source checksum stored in the model artifact.
-- `model_card.qmd` checks for all required saved artifacts before rendering. It is rendered with Quarto after the analyses have produced those inputs.
+- **Explainability:** Exact marginal/interventional SHAP values decompose the logistic model on the log-odds scale.
+- **Feature transparency:** The model card distinguishes interpretable financial-history variables from missing-data indicators, potentially sensitive variables, and opaque `EXT_SOURCE_*` scores.
+- **Adverse-action review:** Feature-to-reason mappings are proposed explanatory aids, not legally approved notices. SHAP values alone do not establish legal adequacy.
+- **Fairness evaluation:** Out-of-fold approval and error-rate comparisons are reported for `CODE_GENDER` and `NAME_EDUCATION_TYPE`, with small and unusual groups flagged.
 
-With the original data and the required R packages already available, run the scripts from the project root in this order:
+Important limitations remain: `TARGET = 1` indicates recorded payment difficulties rather than confirmed permanent default or loss; `EXT_SOURCE_*` definitions and provenance are opaque; other inputs may act as demographic proxies; and the historical data do not prove every feature was available at the time of a lending decision.
+
+## Explore My Work
+
+| File | What it demonstrates |
+|---|---|
+| [eda.qmd](eda.qmd) | Exploratory data analysis, data-quality review, missingness, visualizations, and business insights. |
+| [modeling.qmd](modeling.qmd) | Feature engineering, logistic regression, model comparisons, cross-validation, and final-model validation. |
+| [model_card.qmd](model_card.qmd) | Decision thresholds, financial sensitivity, SHAP, proposed adverse-action mapping, fairness, limitations, and executive summary. |
+| [data_preparation.R](data_preparation.R) | Reusable application preparation and historical-data aggregation functions. |
+| [model_card_preparation.R](model_card_preparation.R) | Recreates the final model artifact and five-fold out-of-fold predictions without rerunning benchmark experiments. |
+| [model_card_threshold_analysis.R](model_card_threshold_analysis.R) | Evaluates threshold operating points using out-of-fold predictions. |
+| [model_card_financial_analysis.R](model_card_financial_analysis.R) | Produces illustrative threshold and nine-scenario financial sensitivity outputs. |
+| [model_card_shap_analysis.R](model_card_shap_analysis.R) | Calculates exact logistic-model SHAP values and explainability figures. |
+| [model_card_adverse_action_analysis.R](model_card_adverse_action_analysis.R) | Creates proposed feature-to-reason mappings and an illustrative declined-applicant explanation. |
+| [model_card_fairness_analysis.R](model_card_fairness_analysis.R) | Produces descriptive out-of-fold fairness metrics and visualizations. |
+
+The repository intentionally retains source notebooks rather than compiled reports. GitHub displays the QMD source, but does not execute Quarto notebooks or display locally generated report output. Compiled HTML reports are kept local and Git-ignored under the course submission policy.
+
+## Tools and Skills Demonstrated
+
+- **Programming and workflow:** R, Quarto, Git, GitHub
+- **Data work:** `tidyverse`, data cleaning, missing-data handling, joins, aggregation, and feature engineering
+- **Modeling:** binomial logistic regression, decision trees (`rpart`), random forests (`ranger`), ROC AUC (`pROC`), and stratified cross-validation (`rsample`)
+- **Analytics communication:** `ggplot2` visualizations, business interpretation, model documentation, and reproducibility checks
+- **Responsible analytics:** threshold trade-offs, financial sensitivity, SHAP explainability, adverse-action review, and descriptive fairness evaluation
+
+## Reproducibility
+
+The source data are from Kaggle's [Home Credit Default Risk competition](https://www.kaggle.com/competitions/home-credit-default-risk/data). Download the original competition files and place them in a local `Data/` directory at the project root.
+
+The Model Card workflow uses `tidyverse`; `model_card_preparation.R` also uses `rsample`. The modeling notebook additionally loads `pROC`, `rpart`, and `ranger`. Package versions are not fully pinned, and this project is not presented as a one-command reproducible environment.
+
+With the original data and required R packages available, run the Model Card scripts from the project root in this order:
 
 ```text
-model_card_preparation.R
-model_card_threshold_analysis.R
-model_card_financial_analysis.R
-model_card_shap_analysis.R
-model_card_adverse_action_analysis.R
-model_card_fairness_analysis.R
+Rscript model_card_preparation.R
+Rscript model_card_threshold_analysis.R
+Rscript model_card_financial_analysis.R
+Rscript model_card_shap_analysis.R
+Rscript model_card_adverse_action_analysis.R
+Rscript model_card_fairness_analysis.R
 ```
 
-Then render `model_card.qmd` with Quarto. These instructions describe the existing scripts only; the repository does not provide package-installation commands or include the raw data/artifacts needed to reproduce the analyses in a new clone.
+Then render `model_card.qmd` with Quarto. The generated `artifacts/` directory, compiled HTML reports, Kaggle submission CSVs, and raw `Data/` files are intentionally Git-ignored. A fresh clone therefore cannot render the Model Card until the original data are available and the required artifacts have been regenerated.
+
+## Interview Talking Points
+
+- I converted multiple historical credit and repayment sources into applicant-level features, then validated one-row-per-applicant joins before modeling.
+- I improved the final logistic model to a mean five-fold ROC AUC of 0.7481 by combining application, repayment-history, and credit-history information with three external-score variables.
+- I used out-of-fold predictions rather than fitted training predictions to evaluate a 12% illustrative lending-risk threshold and its approval-volume trade-off.
+- I used exact linear-model SHAP values to explain risk contributions on the log-odds scale and separated proposed customer-facing reasons from opaque or unsuitable contributors.
+- I treated fairness, data timing, calibration, recovery assumptions, and feature opacity as governance questions—not afterthoughts to model performance.
 
 ## Limitations
 
-The model is not deployment-ready. The Model Card documents limitations involving target meaning, calibration, historical-data timing, external-score opacity, financial assumptions, group disparities, external validity, and governance. Any real lending use would require independent validation, approved financial assumptions, monitoring, legal/compliance review, and model-risk governance.
+This model is not deployment-ready. It requires independent validation, probability calibration, portfolio-specific financial assumptions, monitoring, and legal/compliance approval before any production lending use.
